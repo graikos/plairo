@@ -48,3 +48,19 @@ func ConvertStringToPrivKey(keystr string) (*ecdsa.PrivateKey, error) {
 	}
 	return x509.ParseECPrivateKey(keybytes)
 }
+
+func ConvertBytesToPubKey(keybytes []byte) (*ecdsa.PublicKey, error) {
+	res, err := x509.ParsePKIXPublicKey(keybytes)
+	if err != nil {
+		return nil, fmt.Errorf("parsing public key: %v", err)
+	}
+	pubkey, ok := res.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, errors.New("getting pubkey after parsing")
+	}
+	return pubkey, nil
+}
+
+func ConvertBytesToPrivKey(keybytes []byte) (*ecdsa.PrivateKey, error) {
+	return x509.ParseECPrivateKey(keybytes)
+}
