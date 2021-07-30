@@ -6,18 +6,17 @@ import (
 )
 
 type TransactionOutput struct {
-	ParentTXID []byte
-	Vout uint32
-	Value uint64
+	ParentTXID   []byte
+	Vout         uint32
+	Value        uint64
 	ScriptPubKey []byte
-	OutputID []byte
-	// NOTE: check if below is needed
-	IsNotSpent bool
+	OutputID     []byte
+	IsNotSpent   bool
 }
 
 type TransactionInput struct {
 	OutputReferred *TransactionOutput
-	ScriptSig []byte
+	ScriptSig      []byte
 }
 
 func NewTransactionOutput(parenttxid []byte, vout uint32, value uint64, scriptpubkey []byte) *TransactionOutput {

@@ -7,8 +7,8 @@ import (
 )
 
 type DBwrapper struct {
-	IsObfuscated bool
-	db *leveldb.DB
+	IsObfuscated   bool
+	db             *leveldb.DB
 	obfuscationKey []byte
 }
 
@@ -21,7 +21,7 @@ func NewDBwrapper(dbpath string, isObfuscated bool) *DBwrapper {
 	var obfkey []byte
 	if isObfuscated {
 		// looking up the obfuscation key in the db
-		obfkey, err := db.Get(constructObfKeyKey(),nil)
+		obfkey, err := db.Get(constructObfKeyKey(), nil)
 		if err == leveldb.ErrNotFound {
 			// if not found, generating a new one and saving in the db
 			obfkey = generateObfuscationKey()
@@ -40,7 +40,7 @@ func (d *DBwrapper) obfuscateValue(value []byte) []byte {
 	// XORing the value with the obfuscation key
 	for i, val := range value {
 		// obf key will be repeated if length exceeded
-		res[i] = val ^ d.obfuscationKey[i % len(d.obfuscationKey)]
+		res[i] = val ^ d.obfuscationKey[i%len(d.obfuscationKey)]
 	}
 	// returning an obfuscated copy to keep original value intact
 	return res
@@ -88,7 +88,7 @@ func generateObfuscationKey() []byte {
 }
 
 // constructObfKeyKey constructs the key under which the obfuscation key will be saved in the database
-func constructObfKeyKey() []byte{
+func constructObfKeyKey() []byte {
 	b := make([]byte, 2, 2+len("obfuscate_key"))
 	// will use the bitcoin identifier bits
 	b[0] = 0x0e

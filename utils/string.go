@@ -24,6 +24,22 @@ func ConvertPrivKeyToString(privkey *ecdsa.PrivateKey) (string, error) {
 	return hex.EncodeToString(encprivkey), nil
 }
 
+func ConvertPubKeyToBytes(pubkey *ecdsa.PublicKey) ([]byte, error) {
+	encpubkey, err := x509.MarshalPKIXPublicKey(pubkey)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling public key: %v", err)
+	}
+	return encpubkey, nil
+}
+
+func ConvertPrivKeyToBytes(privkey *ecdsa.PrivateKey) ([]byte, error) {
+	encprivkey, err := x509.MarshalECPrivateKey(privkey)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling ecp private key: %v", err)
+	}
+
+	return encprivkey, nil
+}
 
 func ConvertStringToPubKey(keystr string) (*ecdsa.PublicKey, error) {
 	keybytes, err := hex.DecodeString(keystr)
