@@ -3,6 +3,7 @@ package core
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"math"
 	"plairo/utils"
 )
 
@@ -112,5 +113,46 @@ func (t *Transaction) SerializeTransaction() []byte {
 		res = append(res, outp.ScriptPubKey...)
 	}
 
-	return res
+	// reducing slice capacity
+	r := append([]byte(nil), res...)
+	return r
+}
+
+func (t *Transaction) SerializeTXMetadata() []byte {
+	/*
+	 * Value will be:
+	 * -- isCoinbase (byte)
+	 * -- block height (unsigned int - 4 bytes)
+	 * -- number of outputs (unsigned int - 4 bytes)
+	 * -- packed vector showing unspent outputs (variable - rounded to the nearest byte)
+	 * -- for each unspent txo starting from 0 (96 bytes):
+	 * ---- value in Ko (unsigned long - 8 bytes)
+	 * ---- size of scriptPubKey in bytes (unsigned int - 4 bytes)
+	 * ---- scriptPubKey (since my version is simplified, this will be the recipient pubkey)
+	 *
+	 */
+	// calculating the metadata length to allocate appropriately
+	metadataLen := 9 + int(math.Floor(float64(len(t.outputs)/8))+1)
+	unspent := make([]bool, len(t.outputs))
+	for i, outp := range t.outputs {
+		metadataLen += 8 + len(outp.ScriptPubKey)
+		// marking unspent outputs
+		unspent[i] = outp.IsNotSpent
+	}
+	metadata := make([]byte, 0, metadataLen)
+	if t.IsCoinbase {
+		metadata = append(metadata, 0x01)
+	} else {
+		metadata = append(metadata, 0x00)
+	}
+	metadata = append(metadata, utils.SerializeUint32(t.BlockHeight, false)...)
+	metadata = append(metadata, utils.SerializeUint32(uint32(len(t.outputs)), false)...)
+	metadata = append(metadata, utils.SerializeToOneHot(unspent)...)
+	for _, outp := range t.outputs {
+		metadata = append(metadata, utils.SerializeUint64(outp.Value, false)...)
+		// appending the size of scriptpubkey
+		metadata = append(metadata, utils.SerializeUint32(uint32(len(outp.ScriptPubKey)), false)...)
+		metadata = append(metadata, outp.ScriptPubKey...)
+	}
+	return metadata
 }
