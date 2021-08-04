@@ -9,15 +9,13 @@ import (
 type TxMetadataReader struct {
 	txid     []byte
 	metadata []byte
-	pos      int
 }
 
 func NewTxMetadataReader(txid, txmetadata []byte) *TxMetadataReader {
-	return &TxMetadataReader{txid, txmetadata, 0}
+	return &TxMetadataReader{txid, txmetadata}
 }
 
 func (tr *TxMetadataReader) ReadIsCoinbase() bool {
-	tr.pos++
 	if tr.metadata[0] == 0x01 {
 		return true
 	}
