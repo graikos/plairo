@@ -26,6 +26,7 @@ func NewTransactionOutput(parenttxid []byte, vout uint32, value uint64, scriptpu
 	return t
 }
 
+// generateOutputID generates the ID, which will be parentTXID+vout double hashed.
 func (t *TransactionOutput) generateOutputID() {
 	// concat will be length of parentTXID and the 4 bytes used to represent vout
 	res := make([]byte, len(t.ParentTXID)+4)

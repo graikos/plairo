@@ -43,7 +43,7 @@ func SerializeToOneHot(data []bool) []byte {
 	 */
 
 	// len and cap will be number of bytes required
-	noOfBytes := int(math.Floor(float64(len(data)/8)) + 1)
+	noOfBytes := int(math.Ceil(float64(len(data))/8))
 	res := make([]byte, noOfBytes)
 
 	var tempb byte = 0x00
@@ -63,7 +63,7 @@ func SerializeToOneHot(data []bool) []byte {
 		packCounter--
 	}
 	// adding the last byte
-	if tempb != 0 {
+	if tempb != 0x00 {
 		res[pos] = tempb
 	}
 	return res

@@ -32,7 +32,9 @@ func NewTransaction(from, to *ecdsa.PublicKey, inputs []*TransactionInput, outpu
 	copy(tempoutputs, outputs)
 	// blockheight will be set after adding the transaction to a mined block
 	// transactions created using this constructor are not coinbase
-	return &Transaction{senderPubKey: from, recipientPubKey: to, inputs: tempinputs, outputs: tempoutputs, BlockHeight: 0, IsCoinbase: false}
+	t := &Transaction{senderPubKey: from, recipientPubKey: to, inputs: tempinputs, outputs: tempoutputs, BlockHeight: 0, IsCoinbase: false}
+	t.updateOutputs()
+	return t
 }
 
 func NewCoinbaseTransaction(coinbaseMsg string, coinbaseValue uint64, minerKey *ecdsa.PublicKey, blockHeight uint32) (*Transaction, error) {
@@ -53,6 +55,14 @@ func NewCoinbaseTransaction(coinbaseMsg string, coinbaseValue uint64, minerKey *
 	t := &Transaction{senderPubKey: minerKey, recipientPubKey: minerKey, BlockHeight: blockHeight + 1, inputs: []*TransactionInput{cInput}, outputs: []*TransactionOutput{cOutput}, IsCoinbase: true}
 	t.updateOutputs()
 	return t, nil
+}
+
+func (t *Transaction) GetOutputs() []*TransactionOutput {
+	return t.outputs
+}
+
+func (t *Transaction) GetInputs() []*TransactionInput {
+	return t.inputs
 }
 
 func (t *Transaction) updateOutputs() {
@@ -125,9 +135,9 @@ func (t *Transaction) SerializeTXMetadata() []byte {
 	 * -- block height (unsigned int - 4 bytes)
 	 * -- number of outputs (unsigned int - 4 bytes)
 	 * -- packed vector showing unspent outputs (variable - rounded to the nearest byte)
-	 * -- for each unspent txo starting from 0 (96 bytes):
+	 * -- for each unspent txo starting from 0:
 	 * ---- value in Ko (unsigned long - 8 bytes)
-	 * ---- size of scriptPubKey in bytes (unsigned int - 4 bytes)
+	 * ---- size of scriptPubKey in bytes (unsigned int - 8 bytes)
 	 * ---- scriptPubKey (since my version is simplified, this will be the recipient pubkey)
 	 *
 	 */
@@ -151,7 +161,7 @@ func (t *Transaction) SerializeTXMetadata() []byte {
 	for _, outp := range t.outputs {
 		metadata = append(metadata, utils.SerializeUint64(outp.Value, false)...)
 		// appending the size of scriptpubkey
-		metadata = append(metadata, utils.SerializeUint32(uint32(len(outp.ScriptPubKey)), false)...)
+		metadata = append(metadata, utils.SerializeUint64(uint64(len(outp.ScriptPubKey)), false)...)
 		metadata = append(metadata, outp.ScriptPubKey...)
 	}
 	return metadata
