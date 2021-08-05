@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"math"
+	"plairo/params"
 	"plairo/utils"
 )
 
@@ -46,6 +47,9 @@ func NewCoinbaseTransaction(coinbaseMsg string, coinbaseValue uint64, minerKey *
 	inputSig = append(inputSig, []byte(coinbaseMsg)...)
 	cInput := &TransactionInput{NewTransactionOutput(make([]byte, 32), 0, 0xffffffff, []byte{}), inputSig}
 	// TODO: add check for valid coinbase amount
+	if !params.ValueIsValid(coinbaseValue) {
+		return nil, params.InvalidValue
+	}
 	// minerKey will be used as scriptPubKey (since payToPubKey is the only locking script implemented)
 	scriptPubKey, err := utils.ConvertPubKeyToBytes(minerKey)
 	if err != nil {

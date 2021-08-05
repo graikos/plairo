@@ -43,7 +43,7 @@ func SerializeToOneHot(data []bool) []byte {
 	 */
 
 	// len and cap will be number of bytes required
-	noOfBytes := int(math.Ceil(float64(len(data))/8))
+	noOfBytes := int(math.Ceil(float64(len(data)) / 8))
 	res := make([]byte, noOfBytes)
 
 	var tempb byte = 0x00
@@ -68,7 +68,6 @@ func SerializeToOneHot(data []bool) []byte {
 	}
 	return res
 }
-
 
 func DeserializeUint16(serial []byte, littleEndian bool) uint16 {
 	if littleEndian {
