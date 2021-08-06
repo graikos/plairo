@@ -22,7 +22,7 @@ func newReaderTestCase(values []uint64, pubkeys []string, spents []bool) *reader
 		outs[i] = core.NewTransactionOutput([]byte{}, 0, value, []byte(pubkeys[i]))
 		outs[i].IsNotSpent = spents[i]
 	}
-	tx := core.NewTransaction(nil, nil, nil, outs)
+	tx := core.NewTransaction(nil, outs)
 	tr := NewTxMetadataReader(tx.TXID, tx.SerializeTXMetadata())
 	return &readerTestCase{tr, tx, outs}
 }

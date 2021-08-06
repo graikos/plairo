@@ -13,19 +13,17 @@ type Transaction struct {
 	TXsignature     []byte
 	BlockHeight     uint32
 	IsCoinbase      bool
-	senderPubKey    *ecdsa.PublicKey
-	recipientPubKey *ecdsa.PublicKey
 	inputs          []*TransactionInput
 	outputs         []*TransactionOutput
 }
 
 const (
-	SIGHASH_ALL = iota
+	SIGHASH_ALL = iota+1
 	SIGHASS_NONE
 )
 
 // NewTransaction generates a new non-coinbase transaction
-func NewTransaction(from, to *ecdsa.PublicKey, inputs []*TransactionInput, outputs []*TransactionOutput) *Transaction {
+func NewTransaction(inputs []*TransactionInput, outputs []*TransactionOutput) *Transaction {
 	// copying in/output slices to prevent external changes to the slice from modifying transaction internal slice
 	tempinputs := make([]*TransactionInput, len(inputs))
 	copy(tempinputs, inputs)
@@ -33,7 +31,7 @@ func NewTransaction(from, to *ecdsa.PublicKey, inputs []*TransactionInput, outpu
 	copy(tempoutputs, outputs)
 	// blockheight will be set after adding the transaction to a mined block
 	// transactions created using this constructor are not coinbase
-	t := &Transaction{senderPubKey: from, recipientPubKey: to, inputs: tempinputs, outputs: tempoutputs, BlockHeight: 0, IsCoinbase: false}
+	t := &Transaction{inputs: tempinputs, outputs: tempoutputs, BlockHeight: 0, IsCoinbase: false}
 	t.updateOutputs()
 	return t
 }
@@ -46,7 +44,6 @@ func NewCoinbaseTransaction(coinbaseMsg string, coinbaseValue uint64, minerKey *
 	// appending the desired message (the sig of the coinbase will not be checked either way)
 	inputSig = append(inputSig, []byte(coinbaseMsg)...)
 	cInput := &TransactionInput{NewTransactionOutput(make([]byte, 32), 0, 0xffffffff, []byte{}), inputSig}
-	// TODO: add check for valid coinbase amount
 	if !params.ValueIsValid(coinbaseValue) {
 		return nil, params.InvalidValue
 	}
@@ -56,7 +53,7 @@ func NewCoinbaseTransaction(coinbaseMsg string, coinbaseValue uint64, minerKey *
 		return nil, fmt.Errorf("converting minerkey to bytes: %v", err)
 	}
 	cOutput := NewTransactionOutput([]byte{}, 0, coinbaseValue, scriptPubKey)
-	t := &Transaction{senderPubKey: minerKey, recipientPubKey: minerKey, BlockHeight: blockHeight + 1, inputs: []*TransactionInput{cInput}, outputs: []*TransactionOutput{cOutput}, IsCoinbase: true}
+	t := &Transaction{BlockHeight: blockHeight + 1, inputs: []*TransactionInput{cInput}, outputs: []*TransactionOutput{cOutput}, IsCoinbase: true}
 	t.updateOutputs()
 	return t, nil
 }
