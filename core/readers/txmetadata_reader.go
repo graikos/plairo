@@ -30,35 +30,44 @@ func (tr *TxMetadataReader) ReadNoOfOutputs() uint32 {
 	return utils.DeserializeUint32(tr.metadata[5:9], false)
 }
 
-func (tr *TxMetadataReader) ReadBitVector() []bool {
+func (tr *TxMetadataReader) ReadBitVector() ([]bool, []uint32) {
 	noOfOutputs := tr.ReadNoOfOutputs()
 	res := make([]bool, noOfOutputs)
 	sizeInBytes := int(math.Ceil(float64(noOfOutputs) / 8))
 	// indexing a slice of length equal to number of bytes used in the bitvector
 	bvec := tr.metadata[9 : 9+sizeInBytes]
 	var i uint32
+	// saving the unspent vouts. These will be used to read the outputs appropriately
+	var vouts []uint32
 	for ; i < noOfOutputs; i++ {
 		res[i] = bvec[(sizeInBytes-1)-int(math.Floor(float64(i)/8))]&(0x01<<(i%8)) == byte(math.Pow(2, float64(i%8)))
+		if res[i] {
+			vouts = append(vouts, i)
+		}
 	}
-	return res
+	return res, vouts
 }
-func (tr *TxMetadataReader) ReadOutputs(notSpentVec []bool) []*core.TransactionOutput {
+func (tr *TxMetadataReader) ReadOutputs(notSpentVec []bool, vouts []uint32) []*core.TransactionOutput {
 	noOfOutputs := tr.ReadNoOfOutputs()
-	res := make([]*core.TransactionOutput, noOfOutputs)
+	if notSpentVec == nil || vouts == nil || uint32(len(notSpentVec)) != noOfOutputs {
+		notSpentVec, vouts = tr.ReadBitVector()
+	}
+
+	res := make([]*core.TransactionOutput, len(vouts))
 	var i uint32
 	caret := 9 + uint64(math.Ceil(float64(noOfOutputs)/8))
-	if notSpentVec == nil || uint32(len(notSpentVec)) != noOfOutputs {
-		notSpentVec = tr.ReadBitVector()
-	}
-	for ; i < noOfOutputs; i++ {
+
+	for ; i < uint32(len(vouts)); i++ {
 		val := utils.DeserializeUint64(tr.metadata[caret:caret+8], false)
 		caret += 8
 		slen := utils.DeserializeUint64(tr.metadata[caret:caret+8], false)
 		caret += 8
 		scpub := tr.metadata[caret : caret+slen]
 		caret += slen
-		res[i] = core.NewTransactionOutput(tr.txid, i, val, scpub)
-		res[i].IsNotSpent = notSpentVec[i]
+		res[i] = core.NewTransactionOutput(tr.txid, vouts[i], val, scpub)
+	}
+	if len(res) == 0 {
+		return nil
 	}
 	return res
 }

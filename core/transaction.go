@@ -160,6 +160,9 @@ func (t *Transaction) SerializeTXMetadata() []byte {
 	metadata = append(metadata, utils.SerializeUint32(uint32(len(t.outputs)), false)...)
 	metadata = append(metadata, utils.SerializeToOneHot(unspent)...)
 	for _, outp := range t.outputs {
+		if !outp.IsNotSpent {
+			continue
+		}
 		metadata = append(metadata, utils.SerializeUint64(outp.Value, false)...)
 		// appending the size of scriptpubkey
 		metadata = append(metadata, utils.SerializeUint64(uint64(len(outp.ScriptPubKey)), false)...)
