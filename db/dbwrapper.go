@@ -49,7 +49,7 @@ func (d *DBwrapper) obfuscateValue(value []byte) []byte {
 func (d *DBwrapper) Insert(key, value []byte) error {
 	if d.IsObfuscated {
 		// obfuscating key and value stored
-		return d.db.Put(d.obfuscateValue(key), d.obfuscateValue(value), nil)
+		return d.db.Put(key, d.obfuscateValue(value), nil)
 	} else {
 		return d.db.Put(key, value, nil)
 	}
@@ -57,7 +57,7 @@ func (d *DBwrapper) Insert(key, value []byte) error {
 
 func (d *DBwrapper) Get(key []byte) ([]byte, error) {
 	if d.IsObfuscated {
-		val, err := d.db.Get(d.obfuscateValue(key), nil)
+		val, err := d.db.Get(key, nil)
 		// double obfuscation reveals the original content
 		return d.obfuscateValue(val), err
 	} else {
@@ -66,11 +66,7 @@ func (d *DBwrapper) Get(key []byte) ([]byte, error) {
 }
 
 func (d *DBwrapper) Remove(key []byte) error {
-	if d.IsObfuscated {
-		return d.db.Delete(d.obfuscateValue(key), nil)
-	} else {
-		return d.db.Delete(key, nil)
-	}
+	return d.db.Delete(key, nil)
 }
 
 func (d *DBwrapper) Close() {
