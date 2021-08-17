@@ -9,16 +9,16 @@ import (
 )
 
 type Transaction struct {
-	TXID            []byte
-	TXsignature     []byte
-	BlockHeight     uint32
-	IsCoinbase      bool
-	inputs          []*TransactionInput
-	outputs         []*TransactionOutput
+	TXID        []byte
+	TXsignature []byte
+	BlockHeight uint32
+	IsCoinbase  bool
+	inputs      []*TransactionInput
+	outputs     []*TransactionOutput
 }
 
 const (
-	SIGHASH_ALL = iota+1
+	SIGHASH_ALL = iota + 1
 	SIGHASS_NONE
 )
 
@@ -143,13 +143,20 @@ func (t *Transaction) SerializeTXMetadata() []byte {
 	 *
 	 */
 	// calculating the metadata length to allocate appropriately
-	metadataLen := 9 + int(math.Floor(float64(len(t.outputs)/8))+1)
+	metadataLen := 9
 	unspent := make([]bool, len(t.outputs))
+	unspentCounter := 0
 	for i, outp := range t.outputs {
-		metadataLen += 8 + len(outp.ScriptPubKey)
 		// marking unspent outputs
 		unspent[i] = outp.IsNotSpent
+		// only unspent tx metadata will be stored, only taking these into account to calculate length
+		if outp.IsNotSpent {
+			// 8 bits for the value and 8 bits to indicate the size of scriptpubkey
+			metadataLen += 16 + len(outp.ScriptPubKey)
+			unspentCounter++
+		}
 	}
+	metadataLen += int(math.Floor(float64(unspentCounter)/8) + 1)
 	metadata := make([]byte, 0, metadataLen)
 	if t.IsCoinbase {
 		metadata = append(metadata, 0x01)
@@ -160,7 +167,7 @@ func (t *Transaction) SerializeTXMetadata() []byte {
 	metadata = append(metadata, utils.SerializeUint32(uint32(len(t.outputs)), false)...)
 	metadata = append(metadata, utils.SerializeToOneHot(unspent)...)
 	for _, outp := range t.outputs {
-		if !outp.IsNotSpent {
+		if !outp.IsNotSpent  {
 			continue
 		}
 		metadata = append(metadata, utils.SerializeUint64(outp.Value, false)...)

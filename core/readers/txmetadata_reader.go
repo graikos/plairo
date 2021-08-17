@@ -5,10 +5,20 @@ import (
 	"plairo/core"
 	"plairo/utils"
 )
-
 type TxMetadataReader struct {
 	txid     []byte
 	metadata []byte
+	/*
+	   Metadata format is:
+	   	 * -- isCoinbase (byte)
+	   	 * -- block height (unsigned int - 4 bytes)
+	   	 * -- number of outputs (unsigned int - 4 bytes)
+	   	 * -- packed vector showing unspent outputs (variable - rounded to the nearest byte)
+	   	 * -- for each unspent txo starting from 0:
+	   	 * ---- value in Ko (unsigned long - 8 bytes)
+	   	 * ---- size of scriptPubKey in bytes (unsigned int - 8 bytes)
+	   	 * ---- scriptPubKey (since my version is simplified, this will be the recipient pubkey)
+	*/
 }
 
 func NewTxMetadataReader(txid, txmetadata []byte) *TxMetadataReader {
