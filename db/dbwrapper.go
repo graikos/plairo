@@ -2,6 +2,7 @@ package db
 
 import (
 	"encoding/binary"
+	"errors"
 	"github.com/syndtr/goleveldb/leveldb"
 	"math/rand"
 )
@@ -21,8 +22,8 @@ func NewDBwrapper(dbpath string, isObfuscated bool) *DBwrapper {
 	var obfkey []byte
 	if isObfuscated {
 		// looking up the obfuscation key in the db
-		obfkey, err := db.Get(constructObfKeyKey(), nil)
-		if err == leveldb.ErrNotFound {
+		obfkey, err = db.Get(constructObfKeyKey(), nil)
+		if errors.Is(err, leveldb.ErrNotFound){
 			// if not found, generating a new one and saving in the db
 			obfkey = generateObfuscationKey()
 			err = db.Put(constructObfKeyKey(), obfkey, nil)

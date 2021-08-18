@@ -1,6 +1,7 @@
 package db
 
 import (
+	"errors"
 	"github.com/syndtr/goleveldb/leveldb"
 	"plairo/core"
 	"plairo/core/readers"
@@ -35,7 +36,7 @@ func (c *Chainstate) GetTX(txid []byte) ([]byte, error) {
 
 func (c *Chainstate) UtxoExists(txid []byte, vout uint32) bool {
 	txmeta, err := c.GetTX(txid)
-	if err == leveldb.ErrNotFound {
+	if errors.Is(err, leveldb.ErrNotFound) {
 		return false
 	}
 	tr := readers.NewTxMetadataReader(txid, txmeta)
@@ -48,7 +49,7 @@ func (c *Chainstate) UtxoExists(txid []byte, vout uint32) bool {
 
 func (c *Chainstate) GetUtxo(txid []byte, vout uint32) (*core.TransactionOutput, bool) {
 	txmeta, err := c.GetTX(txid)
-	if err == leveldb.ErrNotFound {
+	if errors.Is(err, leveldb.ErrNotFound) {
 		return nil, false
 	}
 	tr := readers.NewTxMetadataReader(txid, txmeta)
@@ -65,7 +66,7 @@ func (c *Chainstate) RemoveUtxo(txid []byte, vout uint32) bool {
 	// no need to use the getUtxo method, will perform linear search in vouts since
 	// number of outputs is expected to be small
 	txmeta, err := c.GetTX(txid)
-	if err == leveldb.ErrNotFound {
+	if errors.Is(err, leveldb.ErrNotFound) {
 		return false
 	}
 
