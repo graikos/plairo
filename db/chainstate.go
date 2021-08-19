@@ -11,6 +11,8 @@ type Chainstate struct {
 	dbwrapper *DBwrapper
 }
 
+var ErrSpentTX = errors.New("TX has no unspent outputs")
+
 func NewChainstate(dbpath string, isObfuscated bool) *Chainstate {
 	return &Chainstate{NewDBwrapper(dbpath, isObfuscated)}
 }
@@ -23,7 +25,12 @@ func buildTXkey(txid []byte) []byte {
 }
 
 func (c *Chainstate) InsertTX(tx *core.Transaction) error {
+	// checking if there are unspent outputs left before inserting
+	if tx.IsSpent() {
+		return ErrSpentTX
+	}
 	return c.dbwrapper.Insert(buildTXkey(tx.TXID), tx.SerializeTXMetadata())
+
 }
 
 func (c *Chainstate) RemoveTX(txid []byte) error {
@@ -83,6 +90,7 @@ func (c *Chainstate) RemoveUtxo(txid []byte, vout uint32) bool {
 		return true
 	}
 
+	// checking if UTXO exists before removing
 	if vout >= uint32(len(bv)) || !bv[vout] {
 		return false
 	}
@@ -91,15 +99,18 @@ func (c *Chainstate) RemoveUtxo(txid []byte, vout uint32) bool {
 	// creating a new fake transaction without this utxo to serialize
 	fakeouts := make([]*core.TransactionOutput, tr.ReadNoOfOutputs())
 
-	// the length of the fakeouts equals the length of the parse bitvector
-	// iterating through the bitvector and creating fake outputs for unspent vouts only
-	for i, val := range bv {
-		// the output to-be-removed should be treated as spent in the fake outputs
-		if !val || uint32(i) == vout {
+	// placing each remaining unspent output to appropriate position in the new fake outputs
+	for _, outp := range outs {
+		if outp.Vout == vout {
+			continue
+		}
+		fakeouts[outp.Vout] = outp
+	}
+	// filling in the fake outputs with dummy spent outputs
+	for i, fakeout := range fakeouts {
+		if fakeout == nil {
 			fakeouts[i] = core.NewTransactionOutput([]byte{}, 0, 0, []byte{})
 			fakeouts[i].IsNotSpent = false
-		} else {
-			fakeouts[i] = outs[i]
 		}
 	}
 	newmeta := core.NewTransaction(nil, fakeouts).SerializeTXMetadata()
@@ -108,4 +119,18 @@ func (c *Chainstate) RemoveUtxo(txid []byte, vout uint32) bool {
 		return false
 	}
 	return true
+}
+
+func (c *Chainstate) GetNoOfUTXOs(txid []byte) (int, bool) {
+	txmeta, err := c.GetTX(txid)
+	if errors.Is(err, leveldb.ErrNotFound) {
+		return 0, false
+	}
+	_, vouts := readers.NewTxMetadataReader(txid, txmeta).ReadBitVector()
+	return len(vouts), true
+
+}
+
+func (c *Chainstate) Close() {
+	c.dbwrapper.Close()
 }

@@ -52,6 +52,24 @@ func TestDBwrapper_InsertGet(t *testing.T) {
 	}
 }
 
+func TestDBwrapper_Remove(t *testing.T) {
+	db := NewDBwrapper(testDBWrapperPath, true)
+	defer db.Close()
+
+	if err := db.Insert([]byte("remove_key"), []byte("remove_value")); err != nil {
+		t.Error(err)
+	}
+
+	if err := db.Remove([]byte("remove_key")); err != nil {
+		t.Error(err)
+	}
+
+	val, err := db.Get([]byte("remove_key"))
+	if !errors.Is(err, leveldb.ErrNotFound) {
+		t.Errorf("Expected value not to be found, instead got: %x\n", val)
+	}
+}
+
 func TestObfuscation(t *testing.T) {
 	db := NewDBwrapper(testDBWrapperPath, true)
 	// setting a manual obfkey to predict obfuscation results

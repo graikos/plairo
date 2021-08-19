@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"encoding/binary"
 	"plairo/utils"
 )
@@ -35,4 +36,11 @@ func (t *TransactionOutput) generateOutputID() {
 	binary.BigEndian.PutUint32(res[len(t.ParentTXID):], t.Vout)
 	// double hash to get the output id
 	t.OutputID = utils.CalculateSHA256Hash(utils.CalculateSHA256Hash(res))
+}
+
+func (t *TransactionOutput) Equal(t2 *TransactionOutput) bool {
+	if bytes.Equal(t.OutputID, t2.OutputID) && t.Value == t2.Value && t.IsNotSpent == t2.IsNotSpent && bytes.Equal(t.ScriptPubKey, t2.ScriptPubKey) {
+		return true
+	}
+	return false
 }

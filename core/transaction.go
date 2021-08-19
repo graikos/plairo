@@ -167,7 +167,7 @@ func (t *Transaction) SerializeTXMetadata() []byte {
 	metadata = append(metadata, utils.SerializeUint32(uint32(len(t.outputs)), false)...)
 	metadata = append(metadata, utils.SerializeToOneHot(unspent)...)
 	for _, outp := range t.outputs {
-		if !outp.IsNotSpent  {
+		if !outp.IsNotSpent {
 			continue
 		}
 		metadata = append(metadata, utils.SerializeUint64(outp.Value, false)...)
@@ -176,4 +176,13 @@ func (t *Transaction) SerializeTXMetadata() []byte {
 		metadata = append(metadata, outp.ScriptPubKey...)
 	}
 	return metadata
+}
+
+func (t *Transaction) IsSpent() bool {
+	for _, outp := range t.outputs {
+		if outp.IsNotSpent {
+			return false
+		}
+	}
+	return true
 }

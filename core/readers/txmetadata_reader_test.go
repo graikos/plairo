@@ -107,7 +107,7 @@ func TestTxMetadataReader_ReadOutputs(t *testing.T) {
 			t.Fatalf("Length mismatch. Expected %d. Got %d.", unspentcounter, len(gotouts))
 		}
 		for i := 0; i < len(gotouts); i++ {
-			if !bytes.Equal(gotouts[i].ScriptPubKey, tcase.outs[gotouts[i].Vout].ScriptPubKey){
+			if !bytes.Equal(gotouts[i].ScriptPubKey, tcase.outs[gotouts[i].Vout].ScriptPubKey) {
 				fmt.Printf("Got:\n ParentTXID: %x\n Vout: %d\n Value: %d\n IsNotSpent %v\n ScriptPubKey %x\n", gotouts[i].ParentTXID, gotouts[i].Vout, gotouts[i].Value, gotouts[i].IsNotSpent, gotouts[i].ScriptPubKey)
 				expectedout := tcase.outs[gotouts[i].Vout]
 				fmt.Printf("Expected:\n ParentTXID: %x\n Vout: %d\n Value: %d\n IsNotSpent %v\n ScriptPubKey %x\n", expectedout.ParentTXID, expectedout.Vout, expectedout.Value, expectedout.IsNotSpent, expectedout.ScriptPubKey)
@@ -146,7 +146,7 @@ func TestTxMetadataReader_ReadOutputs(t *testing.T) {
 			t.Fatalf("Length mismatch. Expected %d. Got %d.", unspentcounter, len(gotouts))
 		}
 		for i := 0; i < len(gotouts); i++ {
-			if !bytes.Equal(gotouts[i].ScriptPubKey, tcase.outs[gotouts[i].Vout].ScriptPubKey){
+			if !bytes.Equal(gotouts[i].ScriptPubKey, tcase.outs[gotouts[i].Vout].ScriptPubKey) {
 				fmt.Printf("Got:\n ParentTXID: %x\n Vout: %d\n Value: %d\n IsNotSpent %v\n ScriptPubKey %x\n", gotouts[i].ParentTXID, gotouts[i].Vout, gotouts[i].Value, gotouts[i].IsNotSpent, gotouts[i].ScriptPubKey)
 				expectedout := tcase.outs[gotouts[i].Vout]
 				fmt.Printf("Expected:\n ParentTXID: %x\n Vout: %d\n Value: %d\n IsNotSpent %v\n ScriptPubKey %x\n", expectedout.ParentTXID, expectedout.Vout, expectedout.Value, expectedout.IsNotSpent, expectedout.ScriptPubKey)
