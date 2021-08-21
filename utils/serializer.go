@@ -35,6 +35,7 @@ func SerializeUint64(num uint64, littleEndian bool) []byte {
 	return b
 }
 
+
 // SerializeToOneHot converts a bool slice to one-hot representation (resembles big endian)
 func SerializeToOneHot(data []bool) []byte {
 	/*

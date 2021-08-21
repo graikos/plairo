@@ -2,8 +2,11 @@ package core
 
 import (
 	"crypto/ecdsa"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"math"
+	"plairo/db"
 	"plairo/params"
 	"plairo/utils"
 )
@@ -17,10 +20,20 @@ type Transaction struct {
 	outputs     []*TransactionOutput
 }
 
+var ErrDuplicateInput = errors.New("duplicate input")
+var ErrNonExistentUTXO = errors.New("utxo referenced does not exist")
+var ErrInvalidSignatureProvided = errors.New("invalid signature provided for input")
+var ErrInputOutputMismatch = errors.New("output referred does not match actual output")
+var ErrInsufficientFunds = errors.New("input value does not cover output value")
+
+type SIGHASH byte
+
 const (
-	SIGHASH_ALL = iota + 1
+	SIGHASH_ALL SIGHASH = iota + 1
 	SIGHASS_NONE
 )
+
+var cstate *db.Chainstate = db.Cstate
 
 // NewTransaction generates a new non-coinbase transaction
 func NewTransaction(inputs []*TransactionInput, outputs []*TransactionOutput) *Transaction {
@@ -45,7 +58,7 @@ func NewCoinbaseTransaction(coinbaseMsg string, coinbaseValue uint64, minerKey *
 	inputSig = append(inputSig, []byte(coinbaseMsg)...)
 	cInput := &TransactionInput{NewTransactionOutput(make([]byte, 32), 0, 0xffffffff, []byte{}), inputSig}
 	if !params.ValueIsValid(coinbaseValue) {
-		return nil, params.InvalidValue
+		return nil, params.ErrInvalidValue
 	}
 	// minerKey will be used as scriptPubKey (since payToPubKey is the only locking script implemented)
 	scriptPubKey, err := utils.ConvertPubKeyToBytes(minerKey)
@@ -185,4 +198,122 @@ func (t *Transaction) IsSpent() bool {
 		}
 	}
 	return true
+}
+
+func (t *Transaction) ValidateTransaction() error {
+	var inputValue uint64
+
+	// using a map to make sure no duplicate inputs were used
+	dedup := make(map[string]bool)
+	for _, inp := range t.inputs {
+		_, ok := dedup[hex.EncodeToString(inp.OutputReferred.OutputID)]
+		if !ok {
+			dedup[hex.EncodeToString(inp.OutputReferred.OutputID)] = true
+			continue
+		}
+		return ErrDuplicateInput
+	}
+
+	for i, inp := range t.inputs {
+		utxo, ok := cstate.GetUtxo(inp.OutputReferred.ParentTXID, inp.OutputReferred.Vout)
+		if !ok {
+			return ErrNonExistentUTXO
+		}
+		if !utxo.Equal(inp.OutputReferred) {
+			return ErrInputOutputMismatch
+		}
+		sighash_flag := SIGHASH(inp.ScriptSig[len(inp.ScriptSig)-1])
+		rawSig := inp.ScriptSig[:len(inp.ScriptSig)-1]
+
+		sigMsg := t.gatherSignatureDataForInput(i, sighash_flag)
+		// the public key will be the ScriptPubKey of the outputs, since no script is used
+		// and this is a simplified version, using only the full public key
+		pubkey, err := utils.ConvertBytesToPubKey(utxo.ScriptPubKey)
+		if err != nil {
+			return err
+		}
+		if !utils.VerifySignature(sigMsg, rawSig, pubkey) {
+			// output cannot be unlocked, so the TX is rejected
+			return ErrInvalidSignatureProvided
+		}
+		inputValue += inp.OutputReferred.Value
+	}
+
+	// getting the total value of the new outputs
+	var outputValue uint64
+	for _, outp := range t.outputs {
+		outputValue += outp.Value
+		// if any of the outputs has an invalid value, the TX is rejected
+		if !params.ValueIsValid(outputValue) {
+			return params.ErrInvalidValue
+		}
+	}
+
+	// no need to check if input value is valid, since two valid input values may amount to an invalid output value
+	// TODO: Add fees check here, since input value needs to cover both the output value and the fees attached
+
+	if inputValue < outputValue {
+		return ErrInsufficientFunds
+	}
+
+	// TODO: Implement different validation if TX is coinbase
+	/*
+	 * The coinbase transaction must be validated differently. Since inputs do not matter,
+	 * the only condition for a coinbase TX to be valid is for the output value not to exceed the sum of the block
+	 * transaction fees + the block reward. In this context, the fees cannot be calculated, so the coinbase can not
+	 * be validated using this method.
+	 */
+
+	// by this stage, the TX is deemed valid, so the UTXOs used can be removed
+	// another iteration must be used, so as not to remove UTXOs referenced in an invalid TX
+	for _, inp := range t.inputs {
+		if ok := cstate.RemoveUtxo(inp.OutputReferred.ParentTXID, inp.OutputReferred.Vout); !ok {
+			panic("Could not remove UTXOs after validating transaction.")
+		}
+	}
+
+	return nil
+}
+
+func (t *Transaction) gatherSignatureDataForInput(inputIndex int, sighash_flag SIGHASH) []byte {
+	switch sighash_flag {
+	case SIGHASH_ALL:
+		// backing up the rest input signatures
+		backupSigs := make([][]byte, len(t.inputs))
+		// replacing the rest of the signatures
+		for i, inp := range t.inputs {
+			backupSigs[i] = inp.ScriptSig
+			if i == inputIndex {
+				t.inputs[i].ScriptSig = inp.OutputReferred.ScriptPubKey
+				continue
+			}
+			t.inputs[i].ScriptSig = []byte{}
+		}
+		// serializing this new TX without signature
+		customSerialTX := t.SerializeTransaction()
+		// appending the SIGHASH byte to obtain message data
+		customSerialTX = append(customSerialTX, byte(sighash_flag))
+
+		// double-hashing to obtain the message which will be used to sign the input
+		signatureData := utils.CalculateSHA256Hash(utils.CalculateSHA256Hash(customSerialTX))
+		// restoring the rest of the input signatures
+		for i := range t.inputs {
+			t.inputs[i].ScriptSig = backupSigs[i]
+		}
+		return signatureData
+
+	default:
+		return nil
+
+	}
+}
+
+func (t *Transaction) signInput(inputIndex int, privateKey *ecdsa.PrivateKey, sighash_flag SIGHASH) error {
+	signatureMsg := t.gatherSignatureDataForInput(inputIndex, sighash_flag)
+	signature, err := utils.GenerateSignature(signatureMsg, privateKey)
+	if err != nil {
+		return fmt.Errorf("signing input %d: %v", inputIndex, err)
+	}
+	t.inputs[inputIndex].ScriptSig = append(signature, byte(sighash_flag))
+	return nil
 }

@@ -10,7 +10,7 @@ var (
 	MaxValidAmount = 100000000 * uint64(RoToTickRation)
 )
 
-var InvalidValue = errors.New("invalid value")
+var ErrInvalidValue = errors.New("invalid value")
 
 func ValueIsValid(val uint64) bool {
 	return val <= MaxValidAmount

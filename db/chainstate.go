@@ -3,12 +3,22 @@ package db
 import (
 	"errors"
 	"github.com/syndtr/goleveldb/leveldb"
+	"os"
 	"plairo/core"
 	"plairo/core/readers"
 )
 
 type Chainstate struct {
 	dbwrapper *DBwrapper
+}
+
+var Cstate *Chainstate
+var ChainstatePath string
+
+func init() {
+	homedir, _ := os.UserHomeDir()
+	ChainstatePath = homedir + "/.plairo/chainstate"
+	Cstate = NewChainstate(ChainstatePath, true)
 }
 
 var ErrSpentTX = errors.New("TX has no unspent outputs")
