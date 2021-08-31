@@ -26,14 +26,17 @@ var ErrInvalidSignatureProvided = errors.New("invalid signature provided for inp
 var ErrInputOutputMismatch = errors.New("output referred does not match actual output")
 var ErrInsufficientFunds = errors.New("input value does not cover output value")
 
+// SIGHASH is a flag used to provide flexibility when signing TXs, allowing multiple pay methods
 type SIGHASH byte
 
+// for now, only the SIGHASH_ALL case is implemented, meaning every TX detail is signed and tamperproof
 const (
 	SIGHASH_ALL SIGHASH = iota + 1
-	SIGHASS_NONE
+	SIGHASH_NONE
 )
 
-var cstate *db.Chainstate = db.Cstate
+// cstate is the pointer used to access the chainstate database
+var cstate = db.Cstate
 
 // NewTransaction generates a new non-coinbase transaction
 func NewTransaction(inputs []*TransactionInput, outputs []*TransactionOutput) *Transaction {
@@ -49,6 +52,7 @@ func NewTransaction(inputs []*TransactionInput, outputs []*TransactionOutput) *T
 	return t
 }
 
+// NewCoinbaseTransaction generates a new coinbase transaction
 func NewCoinbaseTransaction(coinbaseMsg string, coinbaseValue uint64, minerKey *ecdsa.PublicKey, blockHeight uint32) (*Transaction, error) {
 	inputSig := make([]byte, 4)
 	// blockheight+1 will be the height of the block to which this coinbase TX will belong
@@ -79,6 +83,7 @@ func (t *Transaction) GetInputs() []*TransactionInput {
 	return t.inputs
 }
 
+// updateOutputs ensures the TX outputs have the appropriate fields
 func (t *Transaction) updateOutputs() {
 	if len(t.TXID) == 0 {
 		t.generateTXID()
@@ -142,6 +147,7 @@ func (t *Transaction) SerializeTransaction() []byte {
 	return r
 }
 
+// SerializeTXMetadata returns TX metadata used to store info about UTXOs (in chainstate)
 func (t *Transaction) SerializeTXMetadata() []byte {
 	/*
 	 * Value will be:
@@ -191,6 +197,7 @@ func (t *Transaction) SerializeTXMetadata() []byte {
 	return metadata
 }
 
+// IsSpent determines if all the outputs are spent, making the whole Transaction spent
 func (t *Transaction) IsSpent() bool {
 	for _, outp := range t.outputs {
 		if outp.IsNotSpent {
@@ -200,6 +207,15 @@ func (t *Transaction) IsSpent() bool {
 	return true
 }
 
+/*
+ValidateTransaction is used to validate a transaction.
+1) Checking if TX has duplicate inputs
+2) Checking if signature provided to unlock an output referred is valid
+3) Checking if outputs referred actually exist in the chainstate and are unspent
+4) Checking if the new outputs have a valid value
+5) Checking if the funds provided as input are sufficient to cover the output value
+6) Will check if the funds provided are sufficient to cover the fees as well
+*/
 func (t *Transaction) ValidateTransaction() error {
 	var inputValue uint64
 
@@ -250,6 +266,7 @@ func (t *Transaction) ValidateTransaction() error {
 	}
 
 	// no need to check if input value is valid, since two valid input values may amount to an invalid output value
+	// no need to check if total output value is valid, only individual outputs should have valid values
 	// TODO: Add fees check here, since input value needs to cover both the output value and the fees attached
 
 	if inputValue < outputValue {
@@ -264,17 +281,23 @@ func (t *Transaction) ValidateTransaction() error {
 	 * be validated using this method.
 	 */
 
-	// by this stage, the TX is deemed valid, so the UTXOs used can be removed
-	// another iteration must be used, so as not to remove UTXOs referenced in an invalid TX
-	for _, inp := range t.inputs {
-		if ok := cstate.RemoveUtxo(inp.OutputReferred.ParentTXID, inp.OutputReferred.Vout); !ok {
-			panic("Could not remove UTXOs after validating transaction.")
-		}
-	}
+	// this method is purely used to validate a transaction
+	// the UTXOs referenced should not be removed in this method
 
 	return nil
 }
 
+// cleanUpOutputs removes the UTXOs referenced by this TX. Should be called after validating the TX.
+func (t *Transaction) cleanUpOutputs() error {
+	for _, inp := range t.inputs {
+		if ok := cstate.RemoveUtxo(inp.OutputReferred.ParentTXID, inp.OutputReferred.Vout); !ok {
+			return ErrNonExistentUTXO
+		}
+	}
+	return nil
+}
+
+// gatherSignatureDataForInput provides the message to be signed according to the SIGHASH flag provided
 func (t *Transaction) gatherSignatureDataForInput(inputIndex int, sighash_flag SIGHASH) []byte {
 	switch sighash_flag {
 	case SIGHASH_ALL:
@@ -308,6 +331,7 @@ func (t *Transaction) gatherSignatureDataForInput(inputIndex int, sighash_flag S
 	}
 }
 
+// signInput provides a signature for a specific input, its message determined by the SIGHASH flag
 func (t *Transaction) signInput(inputIndex int, privateKey *ecdsa.PrivateKey, sighash_flag SIGHASH) error {
 	signatureMsg := t.gatherSignatureDataForInput(inputIndex, sighash_flag)
 	signature, err := utils.GenerateSignature(signatureMsg, privateKey)
