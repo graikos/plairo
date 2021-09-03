@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"plairo/coin"
 	"plairo/db"
 	"plairo/params"
 	"plairo/utils"
@@ -267,9 +268,8 @@ func (t *Transaction) ValidateTransaction() error {
 
 	// no need to check if input value is valid, since two valid input values may amount to an invalid output value
 	// no need to check if total output value is valid, only individual outputs should have valid values
-	// TODO: Add fees check here, since input value needs to cover both the output value and the fees attached
-
-	if inputValue < outputValue {
+	// must check if input value can also cover minimum fees required to include this TX
+	if inputValue < outputValue + t.GetMinimumFees() {
 		return ErrInsufficientFunds
 	}
 
@@ -283,7 +283,6 @@ func (t *Transaction) ValidateTransaction() error {
 
 	// this method is purely used to validate a transaction
 	// the UTXOs referenced should not be removed in this method
-
 	return nil
 }
 
@@ -340,4 +339,21 @@ func (t *Transaction) signInput(inputIndex int, privateKey *ecdsa.PrivateKey, si
 	}
 	t.inputs[inputIndex].ScriptSig = append(signature, byte(sighash_flag))
 	return nil
+}
+
+// GetMinimumFees returns minimum required fee amount for this TX. Calculated using the size of serialized TX.
+func (t *Transaction) GetMinimumFees() uint64 {
+	return coin.GetTotalFeeInTicks(t.SerializeTransaction())
+}
+
+func (t *Transaction) GetFees() uint64 {
+	var inputValue uint64
+	var outputValue uint64
+	for _, inp := range t.inputs {
+		inputValue += inp.OutputReferred.Value
+	}
+	for _, outp := range t.outputs {
+		outputValue += outp.Value
+	}
+	return inputValue - outputValue
 }

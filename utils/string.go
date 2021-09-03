@@ -80,3 +80,21 @@ func ConvertBytesToPubKey(keybytes []byte) (*ecdsa.PublicKey, error) {
 func ConvertBytesToPrivKey(keybytes []byte) (*ecdsa.PrivateKey, error) {
 	return x509.ParseECPrivateKey(keybytes)
 }
+
+func ExpandBits(bits []byte) []byte {
+	/*
+	Bits size is currently set to be 4 bytes.
+	First byte is the exponent, meaning the size of the target in bytes
+	The other three bytes are the coefficient, meaning the first three bytes of the target.
+	The above is padded with leading zeroes to reach 32 bytes in size, since a comparison
+	with a SHA-256 hash will be needed.
+	Example: 0x04aabbcc
+	Exponent is 0x04
+	Coefficient is 0xaabbcc
+	Result should be 0x00000000000000000000000000000000000000000000000000000000aabbcc00
+	 */
+	res := make([]byte, 32)
+	exp := int(bits[0])
+	copy(res[32-exp:], bits[1:])
+	return res
+}
