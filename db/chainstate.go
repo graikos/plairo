@@ -11,13 +11,12 @@ type Chainstate struct {
 	dbwrapper *DBwrapper
 }
 
-var Cstate *Chainstate
 var ChainstatePath string
 
 func init() {
 	homedir, _ := os.UserHomeDir()
 	ChainstatePath = homedir + "/.plairo/chainstate"
-	Cstate = NewChainstate(ChainstatePath, true)
+	// instead of initializing the chainstate db here, it will be initialized when injecting to core objects
 }
 
 var ErrSpentTX = errors.New("TX has no unspent outputs")

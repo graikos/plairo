@@ -1,10 +1,11 @@
-package core
+package db
 
 import (
 	"bytes"
 	"errors"
 	"github.com/syndtr/goleveldb/leveldb"
 	"os"
+	"plairo/core"
 	"testing"
 )
 
@@ -16,20 +17,20 @@ func init() {
 }
 
 type cTestCase struct {
-	tx   *Transaction
-	outs []*TransactionOutput
+	tx   *core.Transaction
+	outs []*core.TransactionOutput
 }
 
 func newChainstateTestCase(values []uint64, pubkeys []string, spents []bool) *cTestCase {
 	if !(len(values) == len(pubkeys) && len(values) == len(spents)) {
 		panic("invalid array lengths")
 	}
-	outs := make([]*TransactionOutput, len(values))
+	outs := make([]*core.TransactionOutput, len(values))
 	for i, value := range values {
-		outs[i] = NewTransactionOutput([]byte{}, 0, value, []byte(pubkeys[i]))
+		outs[i] = core.NewTransactionOutput([]byte{}, 0, value, []byte(pubkeys[i]))
 		outs[i].IsNotSpent = spents[i]
 	}
-	tx := NewTransaction(nil, outs)
+	tx := core.NewTransaction(nil, outs)
 	return &cTestCase{tx, outs}
 }
 

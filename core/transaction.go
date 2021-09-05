@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math"
 	"plairo/coin"
-	"plairo/db"
 	"plairo/params"
 	"plairo/utils"
 )
@@ -36,8 +35,13 @@ const (
 	SIGHASH_NONE
 )
 
-// cstate is the pointer used to access the chainstate database
-var cstate = db.Cstate
+type CState interface {
+	GetUtxo([]byte, uint32) (*TransactionOutput, bool)
+	RemoveUtxo([]byte, uint32) bool
+}
+
+// cstate will be used as a chainstate pointer with injection from the db package
+var cstate CState
 
 // NewTransaction generates a new non-coinbase transaction
 func NewTransaction(inputs []*TransactionInput, outputs []*TransactionOutput) *Transaction {

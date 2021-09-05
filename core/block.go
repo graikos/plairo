@@ -36,8 +36,8 @@ func (b *Block) GetBlockHeader() []byte {
 	header = append(header, b.PreviousBlockHash...)
 	header = append(header, b.MerkleRoot...)
 	header = append(header, utils.SerializeUint64(uint64(b.Timestamp), false)...)
-	header = append(header, utils.SerializeUint32(uint32(b.targetBits), false)...)
-	header = append(header, utils.SerializeUint32(uint32(b.nonce), false)...)
+	header = append(header, utils.SerializeUint32(b.targetBits, false)...)
+	header = append(header, utils.SerializeUint32(b.nonce, false)...)
 	return header
 }
 
