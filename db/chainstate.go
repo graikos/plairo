@@ -5,7 +5,6 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 	"os"
 	"plairo/core"
-	"plairo/core/readers"
 )
 
 type Chainstate struct {
@@ -56,7 +55,7 @@ func (c *Chainstate) UtxoExists(txid []byte, vout uint32) bool {
 	if errors.Is(err, leveldb.ErrNotFound) {
 		return false
 	}
-	tr := readers.NewTxMetadataReader(txid, txmeta)
+	tr := core.NewTxMetadataReader(txid, txmeta)
 	bitvec, _ := tr.ReadBitVector()
 	if uint32(len(bitvec)) < vout {
 		return false
@@ -69,7 +68,7 @@ func (c *Chainstate) GetUtxo(txid []byte, vout uint32) (*core.TransactionOutput,
 	if errors.Is(err, leveldb.ErrNotFound) {
 		return nil, false
 	}
-	tr := readers.NewTxMetadataReader(txid, txmeta)
+	tr := core.NewTxMetadataReader(txid, txmeta)
 	bv, vouts := tr.ReadBitVector()
 	for i := 0; i < len(vouts); i++ {
 		if vouts[i] == vout {
@@ -87,7 +86,7 @@ func (c *Chainstate) RemoveUtxo(txid []byte, vout uint32) bool {
 		return false
 	}
 
-	tr := readers.NewTxMetadataReader(txid, txmeta)
+	tr := core.NewTxMetadataReader(txid, txmeta)
 	// getting the slice of unspent tx and their vouts
 	bv, vouts := tr.ReadBitVector()
 
@@ -136,7 +135,7 @@ func (c *Chainstate) GetNoOfUTXOs(txid []byte) (int, bool) {
 	if errors.Is(err, leveldb.ErrNotFound) {
 		return 0, false
 	}
-	_, vouts := readers.NewTxMetadataReader(txid, txmeta).ReadBitVector()
+	_, vouts := core.NewTxMetadataReader(txid, txmeta).ReadBitVector()
 	return len(vouts), true
 
 }

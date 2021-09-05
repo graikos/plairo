@@ -1,28 +1,27 @@
-package readers
+package core
 
 import (
 	"bytes"
 	"fmt"
-	"plairo/core"
 	"testing"
 )
 
 type readerTestCase struct {
 	tr   *TxMetadataReader
-	tx   *core.Transaction
-	outs []*core.TransactionOutput
+	tx   *Transaction
+	outs []*TransactionOutput
 }
 
 func newReaderTestCase(values []uint64, pubkeys []string, spents []bool) *readerTestCase {
 	if !(len(values) == len(pubkeys) && len(values) == len(spents)) {
 		panic("invalid array lengths")
 	}
-	outs := make([]*core.TransactionOutput, len(values))
+	outs := make([]*TransactionOutput, len(values))
 	for i, value := range values {
-		outs[i] = core.NewTransactionOutput([]byte{}, 0, value, []byte(pubkeys[i]))
+		outs[i] = NewTransactionOutput([]byte{}, 0, value, []byte(pubkeys[i]))
 		outs[i].IsNotSpent = spents[i]
 	}
-	tx := core.NewTransaction(nil, outs)
+	tx := NewTransaction(nil, outs)
 	tr := NewTxMetadataReader(tx.TXID, tx.SerializeTXMetadata())
 	return &readerTestCase{tr, tx, outs}
 }

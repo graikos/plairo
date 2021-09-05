@@ -1,8 +1,7 @@
-package readers
+package core
 
 import (
 	"math"
-	"plairo/core"
 	"plairo/utils"
 )
 type TxMetadataReader struct {
@@ -57,13 +56,13 @@ func (tr *TxMetadataReader) ReadBitVector() ([]bool, []uint32) {
 	}
 	return res, vouts
 }
-func (tr *TxMetadataReader) ReadOutputs(notSpentVec []bool, vouts []uint32) []*core.TransactionOutput {
+func (tr *TxMetadataReader) ReadOutputs(notSpentVec []bool, vouts []uint32) []*TransactionOutput {
 	noOfOutputs := tr.ReadNoOfOutputs()
 	if notSpentVec == nil || vouts == nil || uint32(len(notSpentVec)) != noOfOutputs {
 		notSpentVec, vouts = tr.ReadBitVector()
 	}
 
-	res := make([]*core.TransactionOutput, len(vouts))
+	res := make([]*TransactionOutput, len(vouts))
 	var i uint32
 	caret := 9 + uint64(math.Ceil(float64(noOfOutputs)/8))
 
@@ -74,7 +73,7 @@ func (tr *TxMetadataReader) ReadOutputs(notSpentVec []bool, vouts []uint32) []*c
 		caret += 8
 		scpub := tr.metadata[caret : caret+slen]
 		caret += slen
-		res[i] = core.NewTransactionOutput(tr.txid, vouts[i], val, scpub)
+		res[i] = NewTransactionOutput(tr.txid, vouts[i], val, scpub)
 	}
 	if len(res) == 0 {
 		return nil
