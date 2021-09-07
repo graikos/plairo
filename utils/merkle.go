@@ -8,7 +8,7 @@ func ComputeMerkleRoot(hashSlice [][]byte) []byte {
 	if len(hashSlice)%2 == 1 {
 		// using the bitcoin merkle implementation, so if number of hashes in a level is odd, the last
 		// one is duplicated and appended to the end
-		hashSlice = append(hashSlice, hashSlice[len(hashSlice)])
+		hashSlice = append(hashSlice, hashSlice[len(hashSlice)-1])
 	}
 	var tempHashes [][]byte
 	i := 0

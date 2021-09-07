@@ -118,7 +118,7 @@ func (t *Transaction) SerializeTransaction() []byte {
 	 * 	 ... (more inputs)
 	 *
 	 * Number of outputs (int 4 bytes)
-	 *   Value of output in Ko (8 bytes) (unsigned long)
+	 *   Value of output in Ticks (8 bytes) (unsigned long)
 	 *   Size of pubkeyScript (8 bytes) (unsigned long)
 	 *     pubKeyScript (variable length)
 	 *
@@ -301,8 +301,8 @@ func (t *Transaction) cleanUpOutputs() error {
 }
 
 // gatherSignatureDataForInput provides the message to be signed according to the SIGHASH flag provided
-func (t *Transaction) gatherSignatureDataForInput(inputIndex int, sighash_flag SIGHASH) []byte {
-	switch sighash_flag {
+func (t *Transaction) gatherSignatureDataForInput(inputIndex int, sighashFlag SIGHASH) []byte {
+	switch sighashFlag {
 	case SIGHASH_ALL:
 		// backing up the rest input signatures
 		backupSigs := make([][]byte, len(t.inputs))
@@ -318,7 +318,7 @@ func (t *Transaction) gatherSignatureDataForInput(inputIndex int, sighash_flag S
 		// serializing this new TX without signature
 		customSerialTX := t.SerializeTransaction()
 		// appending the SIGHASH byte to obtain message data
-		customSerialTX = append(customSerialTX, byte(sighash_flag))
+		customSerialTX = append(customSerialTX, byte(sighashFlag))
 
 		// double-hashing to obtain the message which will be used to sign the input
 		signatureData := utils.CalculateSHA256Hash(utils.CalculateSHA256Hash(customSerialTX))
@@ -335,13 +335,13 @@ func (t *Transaction) gatherSignatureDataForInput(inputIndex int, sighash_flag S
 }
 
 // signInput provides a signature for a specific input, its message determined by the SIGHASH flag
-func (t *Transaction) signInput(inputIndex int, privateKey *ecdsa.PrivateKey, sighash_flag SIGHASH) error {
-	signatureMsg := t.gatherSignatureDataForInput(inputIndex, sighash_flag)
+func (t *Transaction) signInput(inputIndex int, privateKey *ecdsa.PrivateKey, sighashFlag SIGHASH) error {
+	signatureMsg := t.gatherSignatureDataForInput(inputIndex, sighashFlag)
 	signature, err := utils.GenerateSignature(signatureMsg, privateKey)
 	if err != nil {
 		return fmt.Errorf("signing input %d: %v", inputIndex, err)
 	}
-	t.inputs[inputIndex].ScriptSig = append(signature, byte(sighash_flag))
+	t.inputs[inputIndex].ScriptSig = append(signature, byte(sighashFlag))
 	return nil
 }
 
