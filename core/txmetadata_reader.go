@@ -25,10 +25,7 @@ func NewTxMetadataReader(txid, txmetadata []byte) *TxMetadataReader {
 }
 
 func (tr *TxMetadataReader) ReadIsCoinbase() bool {
-	if tr.metadata[0] == 0x01 {
-		return true
-	}
-	return false
+	return tr.metadata[0] == 0x01
 }
 
 func (tr *TxMetadataReader) ReadBlockHeight() uint32 {

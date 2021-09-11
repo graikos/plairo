@@ -13,13 +13,15 @@ import (
 var ErrInvalidTxInBlock = errors.New("block contains invalid transaction")
 var ErrExceededMaxTX = errors.New("max transaction number exceeded")
 var ErrStaleBlock = errors.New("stale block")
+var ErrInvalidMerkleRoot = errors.New("merkle root is invalid")
+var ErrTargetNotReached = errors.New("mined block does not satisfy target")
 
 type Block struct {
 	PreviousBlockHash []byte
 	MerkleRoot        []byte
 	Timestamp         int64
+	Nonce             uint32
 	targetBits        uint32
-	nonce             uint32
 	allBlockTx        []*Transaction
 }
 
@@ -37,7 +39,7 @@ func (b *Block) GetBlockHeader() []byte {
 	header = append(header, b.MerkleRoot...)
 	header = append(header, utils.SerializeUint64(uint64(b.Timestamp), false)...)
 	header = append(header, utils.SerializeUint32(b.targetBits, false)...)
-	header = append(header, utils.SerializeUint32(b.nonce, false)...)
+	header = append(header, utils.SerializeUint32(b.Nonce, false)...)
 	return header
 }
 
@@ -62,6 +64,7 @@ func (b *Block) ValidateBlockTx() error {
 			Keeping track of each output referenced. If it has been referenced from another TX in the block,
 			the block should be rejected. OutputID uniquely characterizes an output (hash of parentTXID+Vout).
 		*/
+		// TODO: since dedup happens here, if an invalid TX is found, it should also be removed from mempool
 		for _, inp := range tx.inputs {
 			_, ok := dedup[hex.EncodeToString(inp.OutputReferred.OutputID)]
 			if !ok {
@@ -86,12 +89,16 @@ func (b *Block) ConfirmAsValid() error {
 	return nil
 }
 
-func (b *Block) generateBlockMerkleRoot() {
+func (b *Block) generateBlockMerkleRoot() []byte {
 	tmpTXID := make([][]byte, len(b.allBlockTx))
 	for i, tx := range b.allBlockTx {
 		tmpTXID[i] = tx.TXID
 	}
-	b.MerkleRoot = utils.ComputeMerkleRoot(tmpTXID)
+	return utils.ComputeMerkleRoot(tmpTXID)
+}
+
+func (b *Block) ComputeMerkleRoot() {
+	b.MerkleRoot = b.generateBlockMerkleRoot()
 }
 
 func (b *Block) GetBlockFees() uint64 {
@@ -106,7 +113,7 @@ func (b *Block) MineBlock(currentBlockHeight uint32, minerPubKey *ecdsa.PublicKe
 	// timestamping the block
 	b.Timestamp = time.Now().Unix()
 	// initializing the nonce
-	b.nonce = 0
+	b.Nonce = 0
 
 	if err := b.ValidateBlockTx(); err != nil {
 		return err
@@ -127,7 +134,7 @@ func (b *Block) MineBlock(currentBlockHeight uint32, minerPubKey *ecdsa.PublicKe
 	}
 	b.allBlockTx = append(b.allBlockTx, coinbase)
 
-	b.generateBlockMerkleRoot()
+	b.ComputeMerkleRoot()
 
 	var blockHash []byte
 	var timeBumps uint8
@@ -138,10 +145,10 @@ func (b *Block) MineBlock(currentBlockHeight uint32, minerPubKey *ecdsa.PublicKe
 		if bytes.Compare(blockHash, utils.ExpandBits(utils.SerializeUint32(b.targetBits, false))) < 0 {
 			break
 		}
-		b.nonce++
+		b.Nonce++
 
 		// if all nonce values have been tried and it's back again at 0, then bump timestamp if permitted
-		if b.nonce == 0 {
+		if b.Nonce == 0 {
 			if timeBumps < 30 {
 				b.Timestamp++
 				timeBumps++
@@ -151,5 +158,41 @@ func (b *Block) MineBlock(currentBlockHeight uint32, minerPubKey *ecdsa.PublicKe
 		}
 	}
 
+	return nil
+}
+
+func ValidateCoinbase(block *Block, minedBlockHeight uint32) error {
+	// coinbase transaction is always appended last to the block
+	coinbaseTX := block.allBlockTx[len(block.allBlockTx)-1]
+	// getting the value specified in the coinbase transaction as miner reward
+	var coinbaseValue uint64
+	for _, outp := range coinbaseTX.outputs {
+		coinbaseValue += outp.Value
+	}
+	// calculating number of halvings for block received
+	halvings := (minedBlockHeight) / params.SubsidyHalvingInterval
+	subsidy := params.InitialBlockSubsidy >> halvings
+
+	// checking against total block fees and current subsidy
+	if coinbaseValue > subsidy+block.GetBlockFees() {
+		return ErrInvalidTxInBlock
+	}
+	return nil
+}
+
+func ValidateBlock(block *Block, minedBlockHeight uint32) error {
+	if err := block.ValidateBlockTx(); err != nil {
+		return err
+	}
+	if err := ValidateCoinbase(block, minedBlockHeight); err != nil {
+		return err
+	}
+	if !bytes.Equal(block.MerkleRoot, block.generateBlockMerkleRoot()) {
+		return ErrInvalidMerkleRoot
+	}
+	// TODO: add check for appropriate target bits used in mining (TBA when target and difficulty is implemented)
+	if bytes.Compare(block.GetBlockHash(), utils.ExpandBits(utils.SerializeUint32(block.targetBits, false))) >= 0 {
+		return ErrTargetNotReached
+	}
 	return nil
 }
