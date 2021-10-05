@@ -36,7 +36,7 @@ func InitializeNodeFromBlock(block *Block) *BNode {
 }
 
 func (bc *Blockchain) InsertBlock(block *Block) error {
-	// validating block to-be-inserted against the the blockchain index after insertion
+	// validating block to-be-inserted against the blockchain index after insertion
 	if err := ValidateBlock(block, bc.Index+1); err != nil {
 		return err
 	}
