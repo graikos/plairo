@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/syndtr/goleveldb/leveldb"
 	"os"
+	"path/filepath"
 	"plairo/core"
 )
 
@@ -15,7 +16,7 @@ var ChainstatePath string
 
 func init() {
 	homedir, _ := os.UserHomeDir()
-	ChainstatePath = homedir + "/.plairo/chainstate"
+	ChainstatePath = filepath.Join(homedir, "/.plairo/chainstate")
 	// instead of initializing the chainstate db here, it will be initialized when injecting to core objects
 }
 
@@ -25,28 +26,21 @@ func NewChainstate(dbpath string, isObfuscated bool) *Chainstate {
 	return &Chainstate{NewDBwrapper(dbpath, isObfuscated)}
 }
 
-func buildTXkey(txid []byte) []byte {
-	tkey := make([]byte, 1+len(txid))
-	tkey[0] = byte('c')
-	copy(tkey[1:], txid)
-	return tkey
-}
-
 func (c *Chainstate) InsertTX(tx *core.Transaction) error {
 	// checking if there are unspent outputs left before inserting
 	if tx.IsSpent() {
 		return ErrSpentTX
 	}
-	return c.dbwrapper.Insert(buildTXkey(tx.TXID), tx.SerializeTXMetadata())
+	return c.dbwrapper.Insert(buildKey(TxKey, tx.TXID), tx.SerializeTXMetadata())
 
 }
 
 func (c *Chainstate) RemoveTX(txid []byte) error {
-	return c.dbwrapper.Remove(buildTXkey(txid))
+	return c.dbwrapper.Remove(buildKey(TxKey, txid))
 }
 
 func (c *Chainstate) GetTX(txid []byte) ([]byte, error) {
-	return c.dbwrapper.Get(buildTXkey(txid))
+	return c.dbwrapper.Get(buildKey(TxKey, txid))
 }
 
 func (c *Chainstate) UtxoExists(txid []byte, vout uint32) bool {
@@ -92,7 +86,7 @@ func (c *Chainstate) RemoveUtxo(txid []byte, vout uint32) bool {
 	// if utxo to-be-removed is the last unspent output, then
 	// the TX entry must be removed completely
 	if len(vouts) == 1 && vouts[0] == vout {
-		if c.dbwrapper.Remove(buildTXkey(txid)) != nil {
+		if c.dbwrapper.Remove(buildKey(TxKey, txid)) != nil {
 			return false
 		}
 		return true
@@ -122,7 +116,7 @@ func (c *Chainstate) RemoveUtxo(txid []byte, vout uint32) bool {
 		}
 	}
 	newmeta := core.NewTransaction(nil, fakeouts).SerializeTXMetadata()
-	err = c.dbwrapper.Insert(buildTXkey(txid), newmeta)
+	err = c.dbwrapper.Insert(buildKey(TxKey, txid), newmeta)
 	if err != nil {
 		return false
 	}

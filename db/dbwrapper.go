@@ -7,6 +7,23 @@ import (
 	"math/rand"
 )
 
+type KeyType byte
+
+const (
+	TxKey         = KeyType('c')
+	BlockIndexKey = KeyType('b')
+	FileInfoKey   = KeyType('f')
+	TxIndexKey    = KeyType('t')
+	LastFileInd   = KeyType('I')
+)
+
+func buildKey(keyType KeyType, data []byte) []byte {
+	bkey := make([]byte, 1+len(data))
+	bkey[0] = byte(keyType)
+	copy(bkey[1:], data)
+	return bkey
+}
+
 type DBwrapper struct {
 	IsObfuscated   bool
 	db             *leveldb.DB
@@ -23,7 +40,7 @@ func NewDBwrapper(dbpath string, isObfuscated bool) *DBwrapper {
 	if isObfuscated {
 		// looking up the obfuscation key in the db
 		obfkey, err = db.Get(constructObfKeyKey(), nil)
-		if errors.Is(err, leveldb.ErrNotFound){
+		if errors.Is(err, leveldb.ErrNotFound) {
 			// if not found, generating a new one and saving in the db
 			obfkey = generateObfuscationKey()
 			err = db.Put(constructObfKeyKey(), obfkey, nil)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/syndtr/goleveldb/leveldb"
 	"os"
+	"path/filepath"
 	"plairo/core"
 	"testing"
 )
@@ -13,7 +14,7 @@ var testChainstatePath string
 
 func init() {
 	homedir, _ := os.UserHomeDir()
-	testChainstatePath = homedir + "/.plairo/chainstatetest"
+	testChainstatePath = filepath.Join(homedir, "/.plairo/chainstatetest")
 }
 
 type cTestCase struct {
@@ -47,8 +48,8 @@ func testChainstateSetup() []*cTestCase {
 func TestBuildTXKey(t *testing.T) {
 	testtxid := []byte{0x01, 0x0a, 0x02, 0x0b}
 	expected := []byte{0x63, 0x01, 0x0a, 0x02, 0x0b}
-	if !bytes.Equal(buildTXkey(testtxid), expected) {
-		t.Errorf("Expected %x\nGot %x\n", expected, buildTXkey(testtxid))
+	if !bytes.Equal(buildKey(TxKey, testtxid), expected) {
+		t.Errorf("Expected %x\nGot %x\n", expected, buildKey(TxKey, testtxid))
 	}
 }
 
