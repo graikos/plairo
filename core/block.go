@@ -25,11 +25,15 @@ type Block struct {
 	allBlockTx        []*Transaction
 }
 
+func (b *Block) AllBlockTx() []*Transaction {
+	return b.allBlockTx
+}
+
 func (b *Block) GetBlockHeader() []byte {
 	/*
 		Block header consists of:
-		-- Previous block hash
-		-- Merkle root of this block
+		-- Previous block hash (32 bytes)
+		-- Merkle root of this block (32 bytes)
 		-- Timestamp of this block (8 bytes - Big Endian)
 		-- TargetBits used when mining the block (4 bytes - Big Endian)
 		-- Nonce (4 bytes - Big Endian)
@@ -147,7 +151,7 @@ func (b *Block) MineBlock(currentBlockHeight uint32, minerPubKey *ecdsa.PublicKe
 		}
 		b.Nonce++
 
-		// if all nonce values have been tried and it's back again at 0, then bump timestamp if permitted
+		// if all nonce values have been tried, and it's back again at 0, then bump timestamp if permitted
 		if b.Nonce == 0 {
 			if timeBumps < 30 {
 				b.Timestamp++
@@ -159,6 +163,26 @@ func (b *Block) MineBlock(currentBlockHeight uint32, minerPubKey *ecdsa.PublicKe
 	}
 
 	return nil
+}
+
+func (b *Block) Serialize() []byte {
+	/*
+		Magic bytes (4 bytes)
+		Block Header (32 bytes)
+		Number of Transactions (4 bytes)
+		-- Size of Transaction Data (4 bytes)
+		-- Transaction Data for every TX in block
+	*/
+	// at least 40 bytes are needed
+	res := make([]byte, 0, 40)
+	res = append(res, params.BlockMagicBytes...)
+	res = append(res, b.GetBlockHeader()...)
+	res = append(res, utils.SerializeUint32(uint32(len(b.allBlockTx)), false)...)
+	for _, tx := range b.allBlockTx {
+		res = append(res, utils.SerializeUint32(uint32(len(tx.Serialize())), false)...)
+		res = append(res, tx.Serialize()...)
+	}
+	return res
 }
 
 func ValidateCoinbase(block *Block, minedBlockHeight uint32) error {

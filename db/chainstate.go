@@ -32,7 +32,19 @@ func (c *Chainstate) InsertTX(tx *core.Transaction) error {
 		return ErrSpentTX
 	}
 	return c.dbwrapper.Insert(buildKey(TxKey, tx.TXID), tx.SerializeTXMetadata())
+}
 
+func (c *Chainstate) InsertBatchTX(tx *core.Transaction) error {
+	// checking if there are unspent outputs left before inserting
+	if tx.IsSpent() {
+		return ErrSpentTX
+	}
+	c.dbwrapper.PutInBatch(buildKey(TxKey, tx.TXID), tx.SerializeTXMetadata())
+	return nil
+}
+
+func (c *Chainstate) WriteBatchTX() error {
+	return c.dbwrapper.WriteBatch()
 }
 
 func (c *Chainstate) RemoveTX(txid []byte) error {

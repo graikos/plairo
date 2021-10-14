@@ -34,7 +34,7 @@ func (bi *BlockIndex) InsertBlockIndexRecord(block *core.Block, fileIndex, posIn
 	res := make([]byte, 0, 64) // at least 32 bytes will be needed
 	res = append(res, block.GetBlockHeader()...)
 	res = append(res, utils.SerializeUint32(blockHeight, false)...)
-	res = append(res, utils.SerializeUint32(uint32(len(block.AllBlockTx)), false)...)
+	res = append(res, utils.SerializeUint32(uint32(len(block.AllBlockTx())), false)...)
 	res = append(res, utils.SerializeUint32(fileIndex, false)...)
 	res = append(res, utils.SerializeUint32(posInFile, false)...)
 
@@ -65,7 +65,15 @@ func (bi *BlockIndex) InsertLastBlockFileIdx(fileIndex uint32) error {
 	return bi.dbwrapper.Insert([]byte{byte(LastFileInd)}, utils.SerializeUint32(fileIndex, false))
 }
 
-func (bi *BlockIndex) InsertTXIndexRecord(txid []byte, fileIndex, blockOffset, txOffsetInBlock uint32) error {
+func (bi *BlockIndex) GetLastBlockFileIdx() (uint32, error) {
+	res, err := bi.dbwrapper.Get([]byte{byte(LastFileInd)})
+	if err != nil {
+		return 0, err
+	}
+	return utils.DeserializeUint32(res, false), nil
+}
+
+func (bi *BlockIndex) InsertTXIndexRecord(txid []byte, fileIndex, blockOffset, txOffsetInBlock uint32, batchMode bool) error {
 	/*
 		Transaction Index record structure:
 		-- File Index of plr file which contains the block of the transaction (4 bytes)
@@ -77,7 +85,15 @@ func (bi *BlockIndex) InsertTXIndexRecord(txid []byte, fileIndex, blockOffset, t
 	res = append(res, utils.SerializeUint32(blockOffset, false)...)
 	res = append(res, utils.SerializeUint32(txOffsetInBlock, false)...)
 
+	if batchMode {
+		bi.dbwrapper.PutInBatch(buildKey(TxIndexKey, txid), res)
+		return nil
+	}
 	return bi.dbwrapper.Insert(buildKey(TxIndexKey, txid), res)
+}
+
+func (bi *BlockIndex) WriteBatch() error {
+	return bi.dbwrapper.WriteBatch()
 }
 
 func (bi *BlockIndex) Close() {

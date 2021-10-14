@@ -88,6 +88,11 @@ func (t *Transaction) GetInputs() []*TransactionInput {
 	return t.inputs
 }
 
+func (t *Transaction) GetTXID() []byte {
+	return t.TXID
+}
+
+
 // updateOutputs ensures the TX outputs have the appropriate fields
 func (t *Transaction) updateOutputs() {
 	if len(t.TXID) == 0 {
@@ -103,10 +108,10 @@ func (t *Transaction) updateOutputs() {
 }
 
 func (t *Transaction) generateTXID() {
-	t.TXID = utils.CalculateSHA256Hash(utils.CalculateSHA256Hash(t.SerializeTransaction()))
+	t.TXID = utils.CalculateSHA256Hash(utils.CalculateSHA256Hash(t.Serialize()))
 }
 
-func (t *Transaction) SerializeTransaction() []byte {
+func (t *Transaction) Serialize() []byte {
 	/*
 	 * No version number will be used.
 	 * Number of inputs (int 4 bytes)
@@ -243,10 +248,10 @@ func (t *Transaction) ValidateTransaction() error {
 		if !utxo.Equal(inp.OutputReferred) {
 			return ErrInputOutputMismatch
 		}
-		sighash_flag := SIGHASH(inp.ScriptSig[len(inp.ScriptSig)-1])
+		sighashFlag := SIGHASH(inp.ScriptSig[len(inp.ScriptSig)-1])
 		rawSig := inp.ScriptSig[:len(inp.ScriptSig)-1]
 
-		sigMsg := t.gatherSignatureDataForInput(i, sighash_flag)
+		sigMsg := t.gatherSignatureDataForInput(i, sighashFlag)
 		// the public key will be the ScriptPubKey of the outputs, since no script is used
 		// and this is a simplified version, using only the full public key
 		pubkey, err := utils.ConvertBytesToPubKey(utxo.ScriptPubKey)
@@ -316,7 +321,7 @@ func (t *Transaction) gatherSignatureDataForInput(inputIndex int, sighashFlag SI
 			t.inputs[i].ScriptSig = []byte{}
 		}
 		// serializing this new TX without signature
-		customSerialTX := t.SerializeTransaction()
+		customSerialTX := t.Serialize()
 		// appending the SIGHASH byte to obtain message data
 		customSerialTX = append(customSerialTX, byte(sighashFlag))
 
@@ -347,7 +352,7 @@ func (t *Transaction) signInput(inputIndex int, privateKey *ecdsa.PrivateKey, si
 
 // GetMinimumFees returns minimum required fee amount for this TX. Calculated using the size of serialized TX.
 func (t *Transaction) GetMinimumFees() uint64 {
-	return coin.GetTotalFeeInTicks(t.SerializeTransaction())
+	return coin.GetTotalFeeInTicks(t.Serialize())
 }
 
 func (t *Transaction) GetFees() uint64 {

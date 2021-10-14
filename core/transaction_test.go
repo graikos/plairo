@@ -33,8 +33,8 @@ func TestTransaction_SerializeTransaction(t *testing.T) {
 	tin := &TransactionInput{tout, dummysig}
 	tx := NewTransaction([]*TransactionInput{tin}, []*TransactionOutput{tout})
 	expectedSerializedTx, _ := hex.DecodeString("00000001e47125968b3b71049fbc4802d1e40a71ea1359decfabacf70b34588037d4ff0c000000020000000000000021b0382eb48f1497f6477942a6fe9ac60a21b34f5eaa61a6f121454190bdc9c81e010000000100000000000003e8000000000000005b3059301306072a8648ce3d020106082a8648ce3d03010703420004bf3c72438b5f7a931198d7ef85c5c0df44f5d9079565f25dbdae96ae498a8942af671aaa4e5b32d701eca0aac42e98ba7b3b59469d793b4696ba4644bf9ee132")
-	if !bytes.Equal(tx.SerializeTransaction(), expectedSerializedTx) {
-		t.Errorf("Invalid serialized TX.\nExp: %x\nGot: %x", expectedSerializedTx, tx.SerializeTransaction())
+	if !bytes.Equal(tx.Serialize(), expectedSerializedTx) {
+		t.Errorf("Invalid serialized TX.\nExp: %x\nGot: %x", expectedSerializedTx, tx.Serialize())
 	}
 }
 
@@ -60,7 +60,7 @@ func TestTransaction_GetMinimumFees(t *testing.T) {
 	tin := &TransactionInput{tout, []byte("dummysig")}
 	newtout := NewTransactionOutput(utils.CalculateSHA256Hash([]byte("parent")), 2, 700, []byte("dummypub"))
 	tx := NewTransaction([]*TransactionInput{tin}, []*TransactionOutput{newtout})
-	serializedTX := tx.SerializeTransaction()
+	serializedTX := tx.Serialize()
 	if tx.GetMinimumFees() != params.FeePerByte*uint64(len(serializedTX)) {
 		t.Errorf("Incorrect minimum fee value. Expected %d, got %d.\n", params.FeePerByte*uint64(len(serializedTX)), tx.GetMinimumFees())
 	}

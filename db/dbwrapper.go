@@ -28,6 +28,7 @@ type DBwrapper struct {
 	IsObfuscated   bool
 	db             *leveldb.DB
 	obfuscationKey []byte
+	currentBatch   *leveldb.Batch // NOTE: This implementation is blocking if concurrent batch actions are needed
 }
 
 // NewDBwrapper creates a new DBwrapper struct
@@ -71,6 +72,26 @@ func (d *DBwrapper) Insert(key, value []byte) error {
 	} else {
 		return d.db.Put(key, value, nil)
 	}
+}
+
+func (d *DBwrapper) PutInBatch(key, value []byte) {
+	// initializes a batch and adds to it
+	if d.currentBatch == nil {
+		d.currentBatch = new(leveldb.Batch)
+	}
+	d.currentBatch.Put(key, value)
+}
+
+// WriteBatch performs the batch write and resets the batch field
+func (d *DBwrapper) WriteBatch() error {
+	// writing the batch
+	err := d.db.Write(d.currentBatch, nil)
+	if err != nil {
+		return err
+	}
+	// resetting the field
+	d.currentBatch = nil
+	return nil
 }
 
 func (d *DBwrapper) Get(key []byte) ([]byte, error) {
