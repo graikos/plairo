@@ -61,6 +61,10 @@ func (b *Block) ValidateBlockTx() error {
 	*/
 	dedup := make(map[string]bool)
 	for _, tx := range b.allBlockTx {
+		// coinbase validation must be done seperately
+		if tx.IsCoinbase {
+			continue
+		}
 		if err := tx.ValidateTransaction(); err != nil {
 			return err
 		}
@@ -167,15 +171,13 @@ func (b *Block) MineBlock(currentBlockHeight uint32, minerPubKey *ecdsa.PublicKe
 
 func (b *Block) Serialize() []byte {
 	/*
-		Magic bytes (4 bytes)
 		Block Header (32 bytes)
 		Number of Transactions (4 bytes)
 		-- Size of Transaction Data (4 bytes)
 		-- Transaction Data for every TX in block
 	*/
-	// at least 40 bytes are needed
-	res := make([]byte, 0, 40)
-	res = append(res, params.BlockMagicBytes...)
+	// at least 36 bytes are needed
+	res := make([]byte, 0, 36)
 	res = append(res, b.GetBlockHeader()...)
 	res = append(res, utils.SerializeUint32(uint32(len(b.allBlockTx)), false)...)
 	for _, tx := range b.allBlockTx {
@@ -183,6 +185,13 @@ func (b *Block) Serialize() []byte {
 		res = append(res, tx.Serialize()...)
 	}
 	return res
+}
+
+func (b *Block) IterateBlockTx(ch chan<- interface{}) {
+	for _, tx := range b.allBlockTx {
+		ch <- tx
+	}
+	close(ch)
 }
 
 func ValidateCoinbase(block *Block, minedBlockHeight uint32) error {

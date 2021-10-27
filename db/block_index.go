@@ -18,6 +18,18 @@ func init() {
 	BlockIndexPath = filepath.Join(homedir, "/.plairo/blocks/index")
 }
 
+type FileInfoRecord struct {
+	fileIndex  uint32
+	noOfBlocks uint32
+	sizeOfPlr  uint32
+	lowestPlr  uint32
+	highestPlr uint32
+}
+
+func (f *FileInfoRecord) SizeOfPlr() uint32 {
+	return f.sizeOfPlr
+}
+
 func NewBlockIndex(dbpath string, isObfuscated bool) *BlockIndex {
 	return &BlockIndex{NewDBwrapper(dbpath, isObfuscated)}
 }
@@ -49,7 +61,7 @@ func (bi *BlockIndex) InsertFileInfoRecord(fileIndex, noOfBlocks, sizeOfPlr, low
 		-- TBA: size of the undo file for this file index
 		-- The lowest block height stored in the file with this file index (4 bytes)
 		-- The highest block height stored in the file with this file index (4 bytes)
-		-- TBA: lowesst and highest heights of undo file
+		-- TBA: lowest and highest heights of undo file
 	*/
 	res := make([]byte, 0, 16)
 	res = append(res, utils.SerializeUint32(noOfBlocks, false)...)
@@ -58,6 +70,23 @@ func (bi *BlockIndex) InsertFileInfoRecord(fileIndex, noOfBlocks, sizeOfPlr, low
 	res = append(res, utils.SerializeUint32(highestPlr, false)...)
 
 	return bi.dbwrapper.Insert(buildKey(FileInfoKey, utils.SerializeUint32(fileIndex, false)), res)
+}
+
+func (bi *BlockIndex) GetFileInfoRecord(fileIndex uint32) (*FileInfoRecord, error) {
+	data, err := bi.dbwrapper.Get(buildKey(FileInfoKey, utils.SerializeUint32(fileIndex, false)))
+	if err != nil {
+		return nil, err
+	}
+	// TBA: Undo files index modifications
+	caret := 0
+	noOfBlocks := utils.DeserializeUint32(data[caret:caret+4], false)
+	caret += 4
+	sizeOfPlr := utils.DeserializeUint32(data[caret:caret+4], false)
+	caret += 4
+	low := utils.DeserializeUint32(data[caret:caret+4], false)
+	caret += 4
+	high := utils.DeserializeUint32(data[caret:caret+4], false)
+	return &FileInfoRecord{fileIndex, noOfBlocks, sizeOfPlr, low, high}, nil
 }
 
 func (bi *BlockIndex) InsertLastBlockFileIdx(fileIndex uint32) error {
