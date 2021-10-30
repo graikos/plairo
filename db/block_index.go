@@ -8,7 +8,7 @@ import (
 )
 
 type BlockIndex struct {
-	dbwrapper *DBwrapper
+	*DBwrapper
 }
 
 var BlockIndexPath string
@@ -50,7 +50,7 @@ func (bi *BlockIndex) InsertBlockIndexRecord(block *core.Block, fileIndex, posIn
 	res = append(res, utils.SerializeUint32(fileIndex, false)...)
 	res = append(res, utils.SerializeUint32(posInFile, false)...)
 
-	return bi.dbwrapper.Insert(buildKey(BlockIndexKey, block.GetBlockHash()), res)
+	return bi.Insert(buildKey(BlockIndexKey, block.GetBlockHash()), res)
 }
 
 func (bi *BlockIndex) InsertFileInfoRecord(fileIndex, noOfBlocks, sizeOfPlr, lowestPlr, highestPlr uint32) error {
@@ -69,11 +69,11 @@ func (bi *BlockIndex) InsertFileInfoRecord(fileIndex, noOfBlocks, sizeOfPlr, low
 	res = append(res, utils.SerializeUint32(lowestPlr, false)...)
 	res = append(res, utils.SerializeUint32(highestPlr, false)...)
 
-	return bi.dbwrapper.Insert(buildKey(FileInfoKey, utils.SerializeUint32(fileIndex, false)), res)
+	return bi.Insert(buildKey(FileInfoKey, utils.SerializeUint32(fileIndex, false)), res)
 }
 
 func (bi *BlockIndex) GetFileInfoRecord(fileIndex uint32) (*FileInfoRecord, error) {
-	data, err := bi.dbwrapper.Get(buildKey(FileInfoKey, utils.SerializeUint32(fileIndex, false)))
+	data, err := bi.Get(buildKey(FileInfoKey, utils.SerializeUint32(fileIndex, false)))
 	if err != nil {
 		return nil, err
 	}
@@ -91,11 +91,11 @@ func (bi *BlockIndex) GetFileInfoRecord(fileIndex uint32) (*FileInfoRecord, erro
 
 func (bi *BlockIndex) InsertLastBlockFileIdx(fileIndex uint32) error {
 	// Saving with key 'I' the last file index used (4 bytes)
-	return bi.dbwrapper.Insert([]byte{byte(LastFileInd)}, utils.SerializeUint32(fileIndex, false))
+	return bi.Insert([]byte{byte(LastFileInd)}, utils.SerializeUint32(fileIndex, false))
 }
 
 func (bi *BlockIndex) GetLastBlockFileIdx() (uint32, error) {
-	res, err := bi.dbwrapper.Get([]byte{byte(LastFileInd)})
+	res, err := bi.Get([]byte{byte(LastFileInd)})
 	if err != nil {
 		return 0, err
 	}
@@ -115,16 +115,16 @@ func (bi *BlockIndex) InsertTXIndexRecord(txid []byte, fileIndex, blockOffset, t
 	res = append(res, utils.SerializeUint32(txOffsetInBlock, false)...)
 
 	if batchMode {
-		bi.dbwrapper.PutInBatch(buildKey(TxIndexKey, txid), res)
+		bi.PutInBatch(buildKey(TxIndexKey, txid), res)
 		return nil
 	}
-	return bi.dbwrapper.Insert(buildKey(TxIndexKey, txid), res)
+	return bi.Insert(buildKey(TxIndexKey, txid), res)
 }
 
 func (bi *BlockIndex) WriteBatch() error {
-	return bi.dbwrapper.WriteBatch()
+	return bi.WriteBatch()
 }
 
 func (bi *BlockIndex) Close() {
-	bi.dbwrapper.Close()
+	bi.DBwrapper.Close()
 }

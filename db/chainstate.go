@@ -9,7 +9,7 @@ import (
 )
 
 type Chainstate struct {
-	dbwrapper *DBwrapper
+	*DBwrapper
 }
 
 var ChainstatePath string
@@ -31,7 +31,7 @@ func (c *Chainstate) InsertTX(tx *core.Transaction) error {
 	if tx.IsSpent() {
 		return ErrSpentTX
 	}
-	return c.dbwrapper.Insert(buildKey(TxKey, tx.TXID), tx.SerializeTXMetadata())
+	return c.Insert(buildKey(TxKey, tx.TXID), tx.SerializeTXMetadata())
 }
 
 func (c *Chainstate) InsertBatchTX(tx *core.Transaction) error {
@@ -39,20 +39,20 @@ func (c *Chainstate) InsertBatchTX(tx *core.Transaction) error {
 	if tx.IsSpent() {
 		return ErrSpentTX
 	}
-	c.dbwrapper.PutInBatch(buildKey(TxKey, tx.TXID), tx.SerializeTXMetadata())
+	c.PutInBatch(buildKey(TxKey, tx.TXID), tx.SerializeTXMetadata())
 	return nil
 }
 
 func (c *Chainstate) WriteBatchTX() error {
-	return c.dbwrapper.WriteBatch()
+	return c.WriteBatch()
 }
 
 func (c *Chainstate) RemoveTX(txid []byte) error {
-	return c.dbwrapper.Remove(buildKey(TxKey, txid))
+	return c.Remove(buildKey(TxKey, txid))
 }
 
 func (c *Chainstate) GetTX(txid []byte) ([]byte, error) {
-	return c.dbwrapper.Get(buildKey(TxKey, txid))
+	return c.Get(buildKey(TxKey, txid))
 }
 
 func (c *Chainstate) UtxoExists(txid []byte, vout uint32) bool {
@@ -98,7 +98,7 @@ func (c *Chainstate) RemoveUtxo(txid []byte, vout uint32) bool {
 	// if utxo to-be-removed is the last unspent output, then
 	// the TX entry must be removed completely
 	if len(vouts) == 1 && vouts[0] == vout {
-		if c.dbwrapper.Remove(buildKey(TxKey, txid)) != nil {
+		if c.Remove(buildKey(TxKey, txid)) != nil {
 			return false
 		}
 		return true
@@ -128,7 +128,7 @@ func (c *Chainstate) RemoveUtxo(txid []byte, vout uint32) bool {
 		}
 	}
 	newmeta := core.NewTransaction(nil, fakeouts).SerializeTXMetadata()
-	err = c.dbwrapper.Insert(buildKey(TxKey, txid), newmeta)
+	err = c.Insert(buildKey(TxKey, txid), newmeta)
 	if err != nil {
 		return false
 	}
@@ -146,5 +146,5 @@ func (c *Chainstate) GetNoOfUTXOs(txid []byte) (int, bool) {
 }
 
 func (c *Chainstate) Close() {
-	c.dbwrapper.Close()
+	c.DBwrapper.Close()
 }
