@@ -15,15 +15,45 @@ var ErrExceededMaxTX = errors.New("max transaction number exceeded")
 var ErrStaleBlock = errors.New("stale block")
 var ErrInvalidMerkleRoot = errors.New("merkle root is invalid")
 var ErrTargetNotReached = errors.New("mined block does not satisfy target")
+var ErrInvalidHeaderLength = errors.New("invalid block header length")
+var ErrInvalidTimestamp = errors.New("invalid block timestamp")
 
-type Block struct {
+type BlockHeader struct {
 	PreviousBlockHash []byte
 	MerkleRoot        []byte
 	Timestamp         int64
-	Nonce             uint32
-	targetBits        uint32
-	allBlockTx        []*Transaction
+	Nonce      uint32
+	TargetBits uint32
 }
+
+func (bh *BlockHeader) Serialize() []byte {
+	/*
+		Block header consists of:
+		-- Previous block hash (32 bytes)
+		-- Merkle root of this block (32 bytes)
+		-- Timestamp of this block (8 bytes - Big Endian)
+		-- TargetBits used when mining the block (4 bytes - Big Endian)
+		-- Nonce (4 bytes - Big Endian)
+	*/
+	var header []byte
+	header = append(header, bh.PreviousBlockHash...)
+	header = append(header, bh.MerkleRoot...)
+	header = append(header, utils.SerializeUint64(uint64(bh.Timestamp), false)...)
+	header = append(header, utils.SerializeUint32(bh.TargetBits, false)...)
+	header = append(header, utils.SerializeUint32(bh.Nonce, false)...)
+	return header
+}
+
+func (bh *BlockHeader) GetHash() []byte {
+	return utils.CalculateSHA256Hash(utils.CalculateSHA256Hash(bh.Serialize()))
+}
+
+
+type Block struct {
+	header     *BlockHeader
+	allBlockTx []*Transaction
+}
+
 
 func (b *Block) AllBlockTx() []*Transaction {
 	return b.allBlockTx
@@ -38,17 +68,11 @@ func (b *Block) GetBlockHeader() []byte {
 		-- TargetBits used when mining the block (4 bytes - Big Endian)
 		-- Nonce (4 bytes - Big Endian)
 	*/
-	var header []byte
-	header = append(header, b.PreviousBlockHash...)
-	header = append(header, b.MerkleRoot...)
-	header = append(header, utils.SerializeUint64(uint64(b.Timestamp), false)...)
-	header = append(header, utils.SerializeUint32(b.targetBits, false)...)
-	header = append(header, utils.SerializeUint32(b.Nonce, false)...)
-	return header
+	return b.header.Serialize()
 }
 
 func (b *Block) GetBlockHash() []byte {
-	return utils.CalculateSHA256Hash(utils.CalculateSHA256Hash(b.GetBlockHeader()))
+	return b.header.GetHash()
 }
 
 //ValidateBlockTx validates every TX contained in the block and removes the UTXOs referenced, if all TXs are valid
@@ -106,7 +130,7 @@ func (b *Block) generateBlockMerkleRoot() []byte {
 }
 
 func (b *Block) ComputeMerkleRoot() {
-	b.MerkleRoot = b.generateBlockMerkleRoot()
+	b.header.MerkleRoot = b.generateBlockMerkleRoot()
 }
 
 func (b *Block) GetBlockFees() uint64 {
@@ -119,9 +143,9 @@ func (b *Block) GetBlockFees() uint64 {
 
 func (b *Block) MineBlock(currentBlockHeight uint32, minerPubKey *ecdsa.PublicKey) error {
 	// timestamping the block
-	b.Timestamp = time.Now().Unix()
+	b.header.Timestamp = time.Now().Unix()
 	// initializing the nonce
-	b.Nonce = 0
+	b.header.Timestamp = 0
 
 	if err := b.ValidateBlockTx(); err != nil {
 		return err
@@ -150,15 +174,15 @@ func (b *Block) MineBlock(currentBlockHeight uint32, minerPubKey *ecdsa.PublicKe
 	for {
 		blockHash = b.GetBlockHash()
 
-		if bytes.Compare(blockHash, utils.ExpandBits(utils.SerializeUint32(b.targetBits, false))) < 0 {
+		if bytes.Compare(blockHash, utils.ExpandBits(utils.SerializeUint32(b.header.TargetBits, false))) < 0 {
 			break
 		}
-		b.Nonce++
+		b.header.Nonce++
 
 		// if all nonce values have been tried, and it's back again at 0, then bump timestamp if permitted
-		if b.Nonce == 0 {
+		if b.header.Nonce == 0 {
 			if timeBumps < 30 {
-				b.Timestamp++
+				b.header.Timestamp++
 				timeBumps++
 			} else {
 				return ErrStaleBlock
@@ -213,6 +237,33 @@ func ValidateCoinbase(block *Block, minedBlockHeight uint32) error {
 	return nil
 }
 
+func ValidateBlockTarget(blockHeader []byte, targetBits uint32) error {
+	// TODO: add check for appropriate target bits used in mining (TBA when target and difficulty is implemented)
+	// checking header validity
+	if err := ValidateBlockHeader(blockHeader); err != nil {
+		return err
+	}
+	blockHash := utils.CalculateSHA256Hash(utils.CalculateSHA256Hash(blockHeader))
+	if bytes.Compare(blockHash, utils.ExpandBits(utils.SerializeUint32(targetBits, false))) >= 0 {
+		return ErrTargetNotReached
+	}
+	return nil
+}
+
+func ValidateBlockHeader(blockHeader []byte) error {
+	// NOTE: Could more checks be added?
+	// Block header is 32 + 32 + 8 + 4 + 4 = 80 bytes
+	// checking if header length is valid
+	if len(blockHeader) != 80 {
+		return ErrInvalidHeaderLength
+	}
+	// ensuring timestamp is not in the future
+	if utils.DeserializeUint64(blockHeader[64:72], false) > uint64(time.Now().Unix()) {
+		return ErrInvalidTimestamp
+	}
+	return nil
+}
+
 func ValidateBlock(block *Block, minedBlockHeight uint32) error {
 	if err := block.ValidateBlockTx(); err != nil {
 		return err
@@ -220,12 +271,8 @@ func ValidateBlock(block *Block, minedBlockHeight uint32) error {
 	if err := ValidateCoinbase(block, minedBlockHeight); err != nil {
 		return err
 	}
-	if !bytes.Equal(block.MerkleRoot, block.generateBlockMerkleRoot()) {
+	if !bytes.Equal(block.header.MerkleRoot, block.generateBlockMerkleRoot()) {
 		return ErrInvalidMerkleRoot
 	}
-	// TODO: add check for appropriate target bits used in mining (TBA when target and difficulty is implemented)
-	if bytes.Compare(block.GetBlockHash(), utils.ExpandBits(utils.SerializeUint32(block.targetBits, false))) >= 0 {
-		return ErrTargetNotReached
-	}
-	return nil
+	return ValidateBlockTarget(block.GetBlockHeader(), block.header.TargetBits)
 }
