@@ -73,6 +73,7 @@ func NewBlockWriter() *BlockWriter {
 	return &BlockWriter{FileIndex: lastFileIdx, path: filepath.Join(homeDir, params.StoragePath), maxSize: params.MaxBlockFileSize, remSize: remSize}
 }
 
+// TODO: Should partially validated blocks be written?
 func (bw *BlockWriter) Write(block iBlock, blockHeight uint32, indexTX bool) (n int, err error) {
 	// Block structure in file is:
 	//  -- Magic Bytes (4 bytes)

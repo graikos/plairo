@@ -38,6 +38,8 @@ const (
 type CState interface {
 	GetUtxo([]byte, uint32) (*TransactionOutput, bool)
 	RemoveUtxo([]byte, uint32) bool
+	InsertBatchTX(tx *Transaction) error
+	WriteBatchTX() error
 }
 
 // cstate will be used as a chainstate pointer with injection from the db package
@@ -295,8 +297,8 @@ func (t *Transaction) ValidateTransaction() error {
 	return nil
 }
 
-// cleanUpOutputs removes the UTXOs referenced by this TX. Should be called after validating the TX.
-func (t *Transaction) cleanUpOutputs() error {
+// cleanUpInputs removes the UTXOs referenced by this TX. Should be called after validating the TX.
+func (t *Transaction) cleanUpInputs() error {
 	for _, inp := range t.inputs {
 		if ok := cstate.RemoveUtxo(inp.OutputReferred.ParentTXID, inp.OutputReferred.Vout); !ok {
 			return ErrNonExistentUTXO

@@ -113,12 +113,17 @@ func (b *Block) ValidateBlockTx() error {
 func (b *Block) ConfirmAsValid() error {
 	// by this point, all the TX in the block are valid and the UTXOs they reference should be removed from chainstate
 	// a second iteration is necessary to prevent removing the UTXOs of transactions in an invalid block
+	// since the block is confirmed as valid, the new UTXOs can be added to chainstate
 	for _, tx := range b.allBlockTx {
-		if err := tx.cleanUpOutputs(); err != nil {
+		if err := tx.cleanUpInputs(); err != nil {
+			return err
+		}
+		if err := cstate.InsertBatchTX(tx); err != nil {
 			return err
 		}
 	}
-	return nil
+	// Write batch to chainstate
+	return cstate.WriteBatchTX()
 }
 
 func (b *Block) generateBlockMerkleRoot() []byte {
@@ -274,5 +279,11 @@ func ValidateBlock(block *Block, minedBlockHeight uint32) error {
 	if !bytes.Equal(block.header.MerkleRoot, block.generateBlockMerkleRoot()) {
 		return ErrInvalidMerkleRoot
 	}
-	return ValidateBlockTarget(block.GetBlockHeader(), block.header.TargetBits)
+	if err := ValidateBlockHeader(block.GetBlockHeader()); err != nil {
+		return err
+	}
+	if err := ValidateBlockTarget(block.GetBlockHeader(), block.header.TargetBits); err != nil {
+		return err
+	}
+	return nil
 }
