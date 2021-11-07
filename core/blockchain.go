@@ -17,9 +17,8 @@ type BNode struct {
 
 	header *BlockHeader
 
-	height       uint32
-	isFork       bool
-	conflictNode *BNode
+	height uint32
+	isFork bool
 }
 
 func (bn *BNode) InitializeHeaderFromBlock(block *Block) {
@@ -38,19 +37,29 @@ func createGenesisNode() *BNode {
 			TargetBits:        params.GenesisTargetBits,
 			Nonce:             params.GenesisNonce,
 		},
-		isFork:       false,
-		conflictNode: nil,
+		isFork: false,
 	}
+}
+
+type Fork struct {
+	forkRoot  *BNode
+	forkHead  *BNode
+	maxHeight uint32
+}
+
+// couldReach is a quick way to check if an existing fork should be considered when appending blocks
+func (f *Fork) couldReach(height uint32) bool {
+	return f.maxHeight == height-1
+}
+
+// couldAttach checks if the new node is compatible with this fork
+func (f *Fork) couldAttach(hashLink []byte) bool {
+	return bytes.Equal(f.forkHead.header.GetHash(), hashLink)
 }
 
 type Blockchain struct {
 	chain []*BNode
 	forks []*Fork
-}
-
-type Fork struct {
-	forkRoot  *BNode
-	maxHeight uint32
 }
 
 func CreateBlockchain() *Blockchain {
@@ -63,43 +72,108 @@ func CreateBlockchain() *Blockchain {
 
 func (bc *Blockchain) InsertBlock(block *Block, height uint32) error {
 
-	if height > uint32(len(bc.chain)) {
+	if height > uint32(len(bc.chain)) || height <= 0 {
+		// handling blocks with invalid height
 		return ErrInvalidHeight
-	} else if height == uint32(len(bc.chain)) {
-		// checking if link is correct
-		lastnode := bc.chain[len(bc.chain)-1]
-		if !bytes.Equal(block.header.PreviousBlockHash, lastnode.header.GetHash()) {
-			return ErrInvalidLink
-		}
-		if err := ValidateBlock(block, height); err != nil {
-			return err
-		}
-		// creating new node
-		newnode := &BNode{
-			previousBNode: lastnode,
-			nextBNode:     nil,
-			height:        height,
-			isFork:        false,
-			conflictNode:  nil,
-		}
-		newnode.InitializeHeaderFromBlock(block)
+	} else if height < uint32(len(bc.chain)) {
+		// if this condition is true, it means that the block to be inserted belongs to a fork
 
-		// linking former last node to the new node appended
-		lastnode.nextBNode = newnode
+		// checking new block against current block of same height
+		conflictNode := bc.chain[height]
+		// if they are both linked to the same previous node, then an new fork should be created
+		if bytes.Equal(block.header.PreviousBlockHash, conflictNode.header.PreviousBlockHash) {
 
-		// confirming block as valid will remove UTXOs used in this block
-		// and add the new UTXOs created in this block to the chainstate
-		if err := block.ConfirmAsValid(); err != nil {
-			return err
+			// validating header only for new block
+			if err := ValidateBlockHeader(block.GetBlockHeader()); err != nil {
+				return err
+			}
+			// creating new node that will be the root of the new fork
+			newnode := &BNode{
+				previousBNode: conflictNode.previousBNode,
+				nextBNode:     nil,
+				height:        height,
+				isFork:        true,
+			}
+			newnode.InitializeHeaderFromBlock(block)
+
+			// createing new fork, head and root are the same node since only one node exists in fork
+			newfork := &Fork{
+				forkRoot:  newnode,
+				forkHead:  newnode,
+				maxHeight: height,
+			}
+
+			// appending new fork to main chain forks
+			bc.forks = append(bc.forks, newfork)
+
+			// no need to check for re-org, since a new fork could never have a height greater than the main chain
+			return nil
+
 		}
-		bwriter := storage.NewBlockWriter()
-		if _, err := bwriter.Write(block, height, true); err != nil {
-			return err
+
+		// checking if the block belongs to one of the existing forks
+		for _, f := range bc.forks {
+			if !f.couldReach(height) {
+				continue
+			}
+			if f.couldAttach(block.header.GetHash()) {
+				// if block is compatible with this fork, check for valid header
+				// this will check header synta/structure and if the target is reached
+				if err := ValidateBlockHeader(block.GetBlockHeader()); err != nil {
+					return err
+				}
+
+				newnode := &BNode{
+					previousBNode: f.forkHead,
+					nextBNode:     nil,
+					height:        height,
+					isFork:        true,
+				}
+				newnode.InitializeHeaderFromBlock(block)
+				// updating fork properties
+				f.forkHead = newnode
+				f.maxHeight = height
+
+				// TODO: Check if max height is greater than main chain height, if so, re-org
+
+				return nil
+			}
 		}
-		// TODO: Remove block TX from MemPool
-		return nil
+
+		// no suitable fork was found, the block should be rejected
+		return ErrInvalidLink
+
 	}
-	// TODO: add forks
+	// handling regular block insertion at the end of the chain
+	// checking if link is correct
+	lastnode := bc.chain[len(bc.chain)-1]
+	if !bytes.Equal(block.header.PreviousBlockHash, lastnode.header.GetHash()) {
+		return ErrInvalidLink
+	}
+	if err := ValidateBlock(block, height); err != nil {
+		return err
+	}
+	// creating new node
+	newnode := &BNode{
+		previousBNode: lastnode,
+		nextBNode:     nil,
+		height:        height,
+		isFork:        false,
+	}
+	newnode.InitializeHeaderFromBlock(block)
 
+	// linking former last node to the new node appended
+	lastnode.nextBNode = newnode
+
+	// confirming block as valid will remove UTXOs used in this block
+	// and add the new UTXOs created in this block to the chainstate
+	if err := block.ConfirmAsValid(); err != nil {
+		return err
+	}
+	bwriter := storage.NewBlockWriter()
+	if _, err := bwriter.Write(block, height, true); err != nil {
+		return err
+	}
+	// TODO: Remove block TX from MemPool
 	return nil
 }

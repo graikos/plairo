@@ -22,8 +22,8 @@ type BlockHeader struct {
 	PreviousBlockHash []byte
 	MerkleRoot        []byte
 	Timestamp         int64
-	Nonce      uint32
-	TargetBits uint32
+	Nonce             uint32
+	TargetBits        uint32
 }
 
 func (bh *BlockHeader) Serialize() []byte {
@@ -48,12 +48,10 @@ func (bh *BlockHeader) GetHash() []byte {
 	return utils.CalculateSHA256Hash(utils.CalculateSHA256Hash(bh.Serialize()))
 }
 
-
 type Block struct {
 	header     *BlockHeader
 	allBlockTx []*Transaction
 }
-
 
 func (b *Block) AllBlockTx() []*Transaction {
 	return b.allBlockTx
@@ -242,19 +240,6 @@ func ValidateCoinbase(block *Block, minedBlockHeight uint32) error {
 	return nil
 }
 
-func ValidateBlockTarget(blockHeader []byte, targetBits uint32) error {
-	// TODO: add check for appropriate target bits used in mining (TBA when target and difficulty is implemented)
-	// checking header validity
-	if err := ValidateBlockHeader(blockHeader); err != nil {
-		return err
-	}
-	blockHash := utils.CalculateSHA256Hash(utils.CalculateSHA256Hash(blockHeader))
-	if bytes.Compare(blockHash, utils.ExpandBits(utils.SerializeUint32(targetBits, false))) >= 0 {
-		return ErrTargetNotReached
-	}
-	return nil
-}
-
 func ValidateBlockHeader(blockHeader []byte) error {
 	// NOTE: Could more checks be added?
 	// Block header is 32 + 32 + 8 + 4 + 4 = 80 bytes
@@ -265,6 +250,15 @@ func ValidateBlockHeader(blockHeader []byte) error {
 	// ensuring timestamp is not in the future
 	if utils.DeserializeUint64(blockHeader[64:72], false) > uint64(time.Now().Unix()) {
 		return ErrInvalidTimestamp
+	}
+	// TODO: add check for appropriate target bits used in mining (TBA when target and difficulty is implemented)
+	targetBits := utils.DeserializeUint32(blockHeader[76:80], false)
+	if err := ValidateBlockHeader(blockHeader); err != nil {
+		return err
+	}
+	blockHash := utils.CalculateSHA256Hash(utils.CalculateSHA256Hash(blockHeader))
+	if bytes.Compare(blockHash, utils.ExpandBits(utils.SerializeUint32(targetBits, false))) >= 0 {
+		return ErrTargetNotReached
 	}
 	return nil
 }
@@ -280,9 +274,6 @@ func ValidateBlock(block *Block, minedBlockHeight uint32) error {
 		return ErrInvalidMerkleRoot
 	}
 	if err := ValidateBlockHeader(block.GetBlockHeader()); err != nil {
-		return err
-	}
-	if err := ValidateBlockTarget(block.GetBlockHeader(), block.header.TargetBits); err != nil {
 		return err
 	}
 	return nil
