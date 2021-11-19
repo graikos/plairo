@@ -3,8 +3,8 @@ package params
 import "errors"
 
 var (
-	RoToTickRation         = 100000000
-	InitialBlockSubsidy    = 500 * uint64(RoToTickRation)
+	RoToTickRation                = 100000000
+	InitialBlockSubsidy           = 500 * uint64(RoToTickRation)
 	SubsidyHalvingInterval uint32 = 1000
 
 	MaxValidAmount = 100000000 * uint64(RoToTickRation)
@@ -16,7 +16,7 @@ var (
 	// FeePerByte means 1 tick per byte is used as a fee, used as placeholder for now
 	FeePerByte uint64 = 1
 
-	StoragePath = "/.plairo/blocks"
+	StoragePath            = "/.plairo/blocks"
 	MaxBlockFileSize int32 = 134217728 // 128Mb in bytes
 
 	// BlockMagicBytes are the same as bitcoin

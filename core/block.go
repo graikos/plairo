@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"plairo/params"
 	"plairo/utils"
 	"time"
@@ -75,25 +76,22 @@ func (b *Block) GetBlockHash() []byte {
 
 //ValidateBlockTx validates every TX contained in the block and removes the UTXOs referenced, if all TXs are valid
 func (b *Block) ValidateBlockTx() error {
-	/*
-		This method will have to remove the UTXOs referenced by each TX.
-		To avoid referencing UTXOs twice or removing the UTXOs before ensuring the block is valid,
-		a map will be used to check for duplicates and the cleanUp method will be called after making sure
-		all the transactions are indeed valid.
-	*/
+	// This method will have to remove the UTXOs referenced by each TX.
+	// To avoid referencing UTXOs twice or removing the UTXOs before ensuring the block is valid,
+	// a map will be used to check for duplicates and the cleanUp method will be called after making sure
+	// all the transactions are indeed valid.
 	dedup := make(map[string]bool)
-	for _, tx := range b.allBlockTx {
+	for i, tx := range b.allBlockTx {
 		// coinbase validation must be done seperately
-		if tx.IsCoinbase {
+		// if a TX other than the first is marked as coinbase, it will be validated as a normal TX
+		if i == 0 {
 			continue
 		}
 		if err := tx.ValidateTransaction(); err != nil {
 			return err
 		}
-		/*
-			Keeping track of each output referenced. If it has been referenced from another TX in the block,
-			the block should be rejected. OutputID uniquely characterizes an output (hash of parentTXID+Vout).
-		*/
+		// Keeping track of each output referenced. If it has been referenced from another TX in the block,
+		// the block should be rejected. OutputID uniquely characterizes an output (hash of parentTXID+Vout).
 		// TODO: since dedup happens here, if an invalid TX is found, it should also be removed from mempool
 		for _, inp := range tx.inputs {
 			_, ok := dedup[hex.EncodeToString(inp.OutputReferred.OutputID)]
@@ -167,7 +165,11 @@ func (b *Block) MineBlock(currentBlockHeight uint32, minerPubKey *ecdsa.PublicKe
 	if err != nil {
 		return err
 	}
-	b.allBlockTx = append(b.allBlockTx, coinbase)
+	// prepending coinbase transaction to be the first TX of the block
+	tmpTxSlc := make([]*Transaction, len(b.allBlockTx)+1)
+	copy(tmpTxSlc[1:], b.allBlockTx)
+	tmpTxSlc[0] = coinbase
+	b.allBlockTx = tmpTxSlc
 
 	b.ComputeMerkleRoot()
 
@@ -221,9 +223,46 @@ func (b *Block) IterateBlockTx(ch chan<- interface{}) {
 	close(ch)
 }
 
+func (b *Block) GetUndoData() (res []byte, checksum []byte) {
+	/*
+		Number of Transaction records - 1 (4 bytes)
+		-- 2*height (+ 1 if coinbase output) of block in which the UTXO was created (8 bytes)
+		-- Size of scriptPubKey (8 bytes)
+		-- scriptPubKey
+		-- UTXO value (8 bytes)
+	*/
+	res = append(res, utils.SerializeUint32(uint32(len(b.allBlockTx)-1), false)...)
+	for i, tx := range b.allBlockTx {
+		if i == 0 {
+			continue
+		}
+		for _, inp := range tx.inputs {
+			// getting the metadata for the UTXO used as input
+			mt, err := cstate.GetTX(inp.OutputReferred.ParentTXID)
+			if err != nil {
+				panic(fmt.Errorf("getting input metadata for undo data: %v", err))
+			}
+			tr := NewTxMetadataReader(inp.OutputReferred.ParentTXID, mt)
+			// multiplying the height by 2 will shift one bit to the left
+			// the right-most bit will be used to hold if the UTXO was a coinbase output or not
+			h := 2 * uint64(tr.ReadBlockHeight())
+			if tr.ReadIsCoinbase() {
+				h = h + 1
+			}
+			res = append(res, utils.SerializeUint64(h, false)...)
+			res = append(res, utils.SerializeUint64(uint64(len(inp.OutputReferred.ScriptPubKey)), false)...)
+			res = append(res, inp.OutputReferred.ScriptPubKey...)
+			res = append(res, utils.SerializeUint64(inp.OutputReferred.Value, false)...)
+		}
+	}
+	// returning the raw data and the checksum for
+	checksum = utils.CalculateSHA256Hash(utils.CalculateSHA256Hash(res))
+	return
+}
+
 func ValidateCoinbase(block *Block, minedBlockHeight uint32) error {
-	// coinbase transaction is always appended last to the block
-	coinbaseTX := block.allBlockTx[len(block.allBlockTx)-1]
+	// coinbase transaction is always the first transaction of the block
+	coinbaseTX := block.allBlockTx[0]
 	// getting the value specified in the coinbase transaction as miner reward
 	var coinbaseValue uint64
 	for _, outp := range coinbaseTX.outputs {

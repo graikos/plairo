@@ -37,6 +37,7 @@ const (
 
 type CState interface {
 	GetUtxo([]byte, uint32) (*TransactionOutput, bool)
+	GetTX([]byte) ([]byte, error)
 	RemoveUtxo([]byte, uint32) bool
 	InsertBatchTX(tx *Transaction) error
 	WriteBatchTX() error
@@ -93,7 +94,6 @@ func (t *Transaction) GetInputs() []*TransactionInput {
 func (t *Transaction) GetTXID() []byte {
 	return t.TXID
 }
-
 
 // updateOutputs ensures the TX outputs have the appropriate fields
 func (t *Transaction) updateOutputs() {
@@ -280,7 +280,7 @@ func (t *Transaction) ValidateTransaction() error {
 	// no need to check if input value is valid, since two valid input values may amount to an invalid output value
 	// no need to check if total output value is valid, only individual outputs should have valid values
 	// must check if input value can also cover minimum fees required to include this TX
-	if inputValue < outputValue + t.GetMinimumFees() {
+	if inputValue < outputValue+t.GetMinimumFees() {
 		return ErrInsufficientFunds
 	}
 

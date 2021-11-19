@@ -2,10 +2,11 @@ package db
 
 import (
 	"errors"
-	"github.com/syndtr/goleveldb/leveldb"
 	"os"
 	"path/filepath"
 	"plairo/core"
+
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 type Chainstate struct {
@@ -98,10 +99,7 @@ func (c *Chainstate) RemoveUtxo(txid []byte, vout uint32) bool {
 	// if utxo to-be-removed is the last unspent output, then
 	// the TX entry must be removed completely
 	if len(vouts) == 1 && vouts[0] == vout {
-		if c.Remove(buildKey(TxKey, txid)) != nil {
-			return false
-		}
-		return true
+		return c.Remove(buildKey(TxKey, txid)) == nil
 	}
 
 	// checking if UTXO exists before removing
@@ -129,10 +127,7 @@ func (c *Chainstate) RemoveUtxo(txid []byte, vout uint32) bool {
 	}
 	newmeta := core.NewTransaction(nil, fakeouts).SerializeTXMetadata()
 	err = c.Insert(buildKey(TxKey, txid), newmeta)
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }
 
 func (c *Chainstate) GetNoOfUTXOs(txid []byte) (int, bool) {

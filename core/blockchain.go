@@ -165,15 +165,17 @@ func (bc *Blockchain) InsertBlock(block *Block, height uint32) error {
 	// linking former last node to the new node appended
 	lastnode.nextBNode = newnode
 
+	// by now the block has been confirmed, it should be written in storage
+	bwriter := storage.NewBlockWriter()
+	if _, err := bwriter.Write(block, height, true); err != nil {
+		return err
+	}
 	// confirming block as valid will remove UTXOs used in this block
 	// and add the new UTXOs created in this block to the chainstate
 	if err := block.ConfirmAsValid(); err != nil {
 		return err
 	}
-	bwriter := storage.NewBlockWriter()
-	if _, err := bwriter.Write(block, height, true); err != nil {
-		return err
-	}
+
 	// TODO: Remove block TX from MemPool
 	return nil
 }

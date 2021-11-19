@@ -3,11 +3,12 @@ package storage
 import (
 	"errors"
 	"fmt"
-	"github.com/syndtr/goleveldb/leveldb"
 	"os"
 	"path/filepath"
 	"plairo/params"
 	"plairo/utils"
+
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 type BlockWriter struct {
@@ -24,22 +25,28 @@ type iTransation interface {
 	GetTXID() []byte
 }
 
-// TODO: Fix the returned slice problem
 type iBlock interface {
 	Serialize() []byte
+	GetUndoData() ([]byte, []byte)
 	IterateBlockTx(chan<- interface{})
 }
 type iFileInfoRecord interface {
 	SizeOfPlr() uint32
+	SizeOfUndo() uint32
+	NoOfBlocks() uint32
+	LowestPlr() uint32
+	HighestPlr() uint32
 }
 
 type iBlockIndex interface {
 	GetLastBlockFileIdx() (uint32, error)
-	GetFileInfoRecort(uint32) (iFileInfoRecord, error)
+	GetFileInfoRecord(uint32) (iFileInfoRecord, error)
+	GetLastUndoFileIdx() (uint32, error)
 	InsertLastBlockFileIdx(uint32) error
-	InsertFileInfoRecord(fileIndex, noOfBlocks, sizeOfPlr, lowestPlr, highestPlr uint32) error
-	InsertBlockIndexRecord(block iBlock, fileIndex, posInFile, blockHeight uint32) error
+	InsertFileInfoRecord(fileIndex, noOfBlocks, sizeOfPlr, sizeOfUndo, lowestPlr, highestPlr uint32) error
+	InsertBlockIndexRecord(block iBlock, fileIndex, posInFile, blockHeight, undoFileIndex, undoPosInFile uint32) error
 	InsertTXIndexRecord(txid []byte, fileIndex, blockOffset, txOffsetInBlock uint32, batchMode bool) error
+	InsertLastUndoFileIdx(fileIndex uint32) error
 	WriteBatch() error
 }
 
@@ -58,7 +65,7 @@ func NewBlockWriter() *BlockWriter {
 		panic(err)
 	}
 	// getting file metadata to initialize writer
-	fMeta, err := blockIndex.GetFileInfoRecort(lastFileIdx)
+	fMeta, err := blockIndex.GetFileInfoRecord(lastFileIdx)
 	var remSize int32
 	if err == nil {
 		// getting the correct remaining size in current file
@@ -88,9 +95,20 @@ func (bw *BlockWriter) Write(block iBlock, blockHeight uint32, indexTX bool) (n 
 	data = append(data, ser...)
 	// moving to new file if storage in current file is not sufficient
 	if int32(len(data)) > bw.remSize {
+		// if record with next index exists because of undo files, get undo file size
+		nxt, err := blockIndex.GetFileInfoRecord(bw.FileIndex)
+		var prevUndoSize uint32
+		// if no error, record was found, use this undo size
+		// if record not found, don't change prevUndoSize (initialized with desired value of 0)
+		if err == nil {
+			prevUndoSize = nxt.SizeOfUndo()
+		} else if !errors.Is(err, leveldb.ErrNotFound) {
+			return 0, err
+		}
 		// saving current file metadata
 		// assuming highest block height is the previous one
-		if err := blockIndex.InsertFileInfoRecord(bw.FileIndex, bw.currentNoOfBlocks, uint32(bw.maxSize-bw.remSize), bw.firstBlockHeight, blockHeight-1); err != nil {
+		// saving previous undo data to avoid possible overwrite if file record already exists, created by undo files
+		if err := blockIndex.InsertFileInfoRecord(bw.FileIndex, bw.currentNoOfBlocks, uint32(bw.maxSize-bw.remSize), prevUndoSize, bw.firstBlockHeight, blockHeight-1); err != nil {
 			return 0, err
 		}
 		// updating current file index
@@ -130,17 +148,35 @@ func (bw *BlockWriter) Write(block iBlock, blockHeight uint32, indexTX bool) (n 
 	// remaining size is reduced by n (number of bytes written)
 	bw.remSize -= int32(n)
 	bw.currentNoOfBlocks++
+
+	// checking again if new record is overwriting an record created by and undo
+	nxt, err := blockIndex.GetFileInfoRecord(bw.FileIndex)
+	var prevUndoSize uint32
+	// if record not found, don't change prevUndoSize (initialized with desired value of 0)
+	if err == nil {
+		// if no error, record was found, use this undo size
+		prevUndoSize = nxt.SizeOfUndo()
+	} else if !errors.Is(err, leveldb.ErrNotFound) {
+		return 0, err
+	}
 	// updating the file index record for the current file
 	// for the current file, the firstBlockHeight has been set when creating the file
 	// if the current file is the first one, then the firstBlockHeight will be 0, which is correct.
 	// if not, the lowest and heighest height will be the same, since only one block exists presently in the file
 	// The highest block height for the current file will always be the height currently being written
-	if err := blockIndex.InsertFileInfoRecord(bw.FileIndex, bw.currentNoOfBlocks, uint32(bw.maxSize-bw.remSize), bw.firstBlockHeight, blockHeight); err != nil {
+	if err := blockIndex.InsertFileInfoRecord(bw.FileIndex, bw.currentNoOfBlocks, uint32(bw.maxSize-bw.remSize), prevUndoSize, bw.firstBlockHeight, blockHeight); err != nil {
 		return n, nil
 	}
 
+	// writing block undo data
+	undoWriter := newUndoWriter()
+	undoIdx, undoOffset, err := undoWriter.write(block, blockHeight)
+	if err != nil {
+		return 0, err
+	}
+
 	// updating block index for the latest block written
-	if err := blockIndex.InsertBlockIndexRecord(block, bw.FileIndex, uint32(blockOffset), blockHeight); err != nil {
+	if err := blockIndex.InsertBlockIndexRecord(block, bw.FileIndex, uint32(blockOffset), blockHeight, undoIdx, undoOffset); err != nil {
 		return n, err
 	}
 

@@ -3,18 +3,20 @@ package db
 import (
 	"encoding/binary"
 	"errors"
-	"github.com/syndtr/goleveldb/leveldb"
 	"math/rand"
+
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 type KeyType byte
 
 const (
-	TxKey         = KeyType('c')
-	BlockIndexKey = KeyType('b')
-	FileInfoKey   = KeyType('f')
-	TxIndexKey    = KeyType('t')
-	LastFileInd   = KeyType('I')
+	TxKey           = KeyType('c')
+	BlockIndexKey   = KeyType('b')
+	FileInfoKey     = KeyType('f')
+	TxIndexKey      = KeyType('t')
+	LastFileInd     = KeyType('I')
+	LastUndoFileInd = KeyType('U')
 )
 
 func buildKey(keyType KeyType, data []byte) []byte {
