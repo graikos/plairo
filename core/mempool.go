@@ -11,6 +11,14 @@ var ErrTxRecNotFound = errors.New("transaction record not found in mempool")
 var ErrDoubleSpentOutput = errors.New("output referenced twice")
 var ErrTxNotInMemPool = errors.New("transaction does not exist in mempool")
 
+// initializing mempool
+
+var mempool *MemPool
+
+func init() {
+	mempool = &MemPool{&memTree{}, make(map[string]uint64), make(map[string]bool)}
+}
+
 type txRecord struct {
 	fee  uint64
 	txid []byte
@@ -358,6 +366,17 @@ func (mp *MemPool) RemoveTX(tx *Transaction) error {
 		delete(mp.outsReferenced, hex.EncodeToString(inp.OutputReferred.OutputID))
 	}
 	return nil
+}
+
+func (mp *MemPool) RemoveBlock(block *Block) {
+	for i, tx := range block.allBlockTx {
+		// coinbase cannot exist in mempool, no point in checking
+		if i == 0 {
+			continue
+		}
+		// does not matter if the TX does not exist in mempool, removing those that do
+		mp.RemoveTX(tx)
+	}
 }
 
 func (mp *MemPool) GetMaxTXs(out chan<- interface{}, noOfTxToGet int) {

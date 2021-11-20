@@ -88,17 +88,20 @@ func (b *Block) ValidateBlockTx() error {
 			continue
 		}
 		if err := tx.ValidateTransaction(); err != nil {
+			// making sure the invalid transaction is removed from mempool if exists
+			mempool.RemoveTX(tx)
 			return err
 		}
 		// Keeping track of each output referenced. If it has been referenced from another TX in the block,
 		// the block should be rejected. OutputID uniquely characterizes an output (hash of parentTXID+Vout).
-		// TODO: since dedup happens here, if an invalid TX is found, it should also be removed from mempool
 		for _, inp := range tx.inputs {
 			_, ok := dedup[hex.EncodeToString(inp.OutputReferred.OutputID)]
 			if !ok {
 				dedup[hex.EncodeToString(inp.OutputReferred.OutputID)] = true
 				continue
 			}
+			// removing from mempool if exists
+			mempool.RemoveTX(tx)
 			return ErrInvalidTxInBlock
 		}
 	}

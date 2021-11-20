@@ -176,6 +176,7 @@ func (bc *Blockchain) InsertBlock(block *Block, height uint32) error {
 		return err
 	}
 
-	// TODO: Remove block TX from MemPool
+	// removing transactions from the mempool
+	mempool.RemoveBlock(block)
 	return nil
 }
