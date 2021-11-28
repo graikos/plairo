@@ -101,11 +101,9 @@ func (t *Transaction) updateOutputs() {
 		t.generateTXID()
 	}
 	for i, outp := range t.outputs {
-		if len(outp.ParentTXID) == 0 {
-			outp.ParentTXID = t.TXID
-			outp.Vout = uint32(i)
-			outp.generateOutputID()
-		}
+		outp.ParentTXID = t.TXID
+		outp.Vout = uint32(i)
+		outp.generateOutputID()
 	}
 }
 
