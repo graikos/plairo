@@ -54,6 +54,10 @@ type Block struct {
 	allBlockTx []*Transaction
 }
 
+func NewBlock(txs []*Transaction) *Block {
+	return &Block{allBlockTx: txs}
+}
+
 func (b *Block) AllBlockTx() []*Transaction {
 	return b.allBlockTx
 }
@@ -88,6 +92,7 @@ func (b *Block) ValidateBlockTx() error {
 			continue
 		}
 		if err := tx.ValidateTransaction(); err != nil {
+			fmt.Println("Validating tx...")
 			// making sure the invalid transaction is removed from mempool if exists
 			mempool.RemoveTX(tx)
 			return err
@@ -137,9 +142,13 @@ func (b *Block) ComputeMerkleRoot() {
 	b.header.MerkleRoot = b.generateBlockMerkleRoot()
 }
 
-func (b *Block) GetBlockFees() uint64 {
+func (b *Block) GetBlockFees(containsCB bool) uint64 {
 	var total uint64
-	for _, tx := range b.allBlockTx {
+	for i, tx := range b.allBlockTx {
+		// coinbase should not be taking into account when calculating total fees
+		if containsCB && i == 0 {
+			continue
+		}
 		total += tx.GetFees()
 	}
 	return total
@@ -163,7 +172,7 @@ func (b *Block) MineBlock(currentBlockHeight uint32, minerPubKey *ecdsa.PublicKe
 	halvings := (currentBlockHeight + 1) / params.SubsidyHalvingInterval
 	subsidy := params.InitialBlockSubsidy >> halvings
 
-	fees := b.GetBlockFees()
+	fees := b.GetBlockFees(false)
 	coinbase, err := NewCoinbaseTransaction("coinbase", subsidy+fees, minerPubKey, currentBlockHeight)
 	if err != nil {
 		return err
@@ -276,7 +285,7 @@ func ValidateCoinbase(block *Block, minedBlockHeight uint32) error {
 	subsidy := params.InitialBlockSubsidy >> halvings
 
 	// checking against total block fees and current subsidy
-	if coinbaseValue > subsidy+block.GetBlockFees() {
+	if coinbaseValue > subsidy+block.GetBlockFees(true) {
 		return ErrInvalidTxInBlock
 	}
 	return nil

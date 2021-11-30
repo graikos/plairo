@@ -180,3 +180,10 @@ func (bc *Blockchain) InsertBlock(block *Block, height uint32) error {
 	mempool.RemoveBlock(block)
 	return nil
 }
+
+func (bc *Blockchain) GetHeaderAt(index int) (*BlockHeader, bool) {
+	if index >= 0 && index < len(bc.chain) {
+		return bc.chain[index].header, true
+	}
+	return nil, false
+}

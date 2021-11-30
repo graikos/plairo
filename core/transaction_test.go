@@ -197,7 +197,7 @@ func createTestOutputs(num int, mark byte, optTXID []byte, optPubKey *ecdsa.Publ
 	/*
 		ParentTXID: [mark]0000...0000000000 incrementing
 		Initial vout: i
-		Value: 2*(i+1)
+		Value: 2000*(i+1)
 		ScriptPubKey : First byte 0x99 last 4 bytes are i
 	*/
 	res := make([]*TransactionOutput, 0, num)
@@ -364,5 +364,34 @@ func TestTransaction_ValidateTransaction(t *testing.T) {
 	signTestInputs(tx7, privkey7)
 	if err := tx7.ValidateTransaction(); !errors.Is(err, ErrInsufficientFunds) {
 		t.Errorf("Error validating TX #7: %v\n", err)
+	}
+}
+
+func TestTransaction_cleanUpInputs(t *testing.T) {
+	old := initTestCState()
+	defer resetTestCState(old)
+
+	// Test Case #1: Using up all outputs of a transaction and checking if any remaing in cstate
+	privkey1, pubkey1, err := utils.GenerateKeyPair()
+	if err != nil {
+		t.Fatalf("error generating key pair #1: %v\n", err)
+	}
+	basetx1 := NewTransaction(createTestInputs(createTestOutputs(10, 0x01, nil, nil)), createTestOutputs(3, 0x02, nil, pubkey1))
+	cstate.InsertBatchTX(basetx1)
+
+	tx1 := NewTransaction(createTestInputs(createTestOutputs(3, 0x02, basetx1.TXID, pubkey1)), createTestOutputs(1, 0x01, nil, nil))
+	signTestInputs(tx1, privkey1)
+	if err := tx1.ValidateTransaction(); err != nil {
+		t.Fatalf("Error validating transaction #1: %v\n", err)
+	}
+	if err := tx1.cleanUpInputs(); err != nil {
+		t.Fatalf("Error cleaning up inputs for transaction #1: %v\n", err)
+	}
+
+	for i := range basetx1.outputs {
+		_, ok := cstate.GetUtxo(basetx1.TXID, uint32(i))
+		if ok {
+			t.Errorf("Found UTXO with vout: %d\n", i)
+		}
 	}
 }
