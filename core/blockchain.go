@@ -181,8 +181,8 @@ func (bc *Blockchain) InsertBlock(block *Block, height uint32) error {
 	return nil
 }
 
-func (bc *Blockchain) GetHeaderAt(index int) (*BlockHeader, bool) {
-	if index >= 0 && index < len(bc.chain) {
+func (bc *Blockchain) GetHeaderAt(index uint32) (*BlockHeader, bool) {
+	if index >= 0 && index < uint32(len(bc.chain)) {
 		return bc.chain[index].header, true
 	}
 	return nil, false

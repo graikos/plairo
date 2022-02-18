@@ -329,3 +329,39 @@ func ValidateBlock(block *Block, minedBlockHeight uint32) error {
 	}
 	return nil
 }
+
+func GetTargetForBlock(bchain *Blockchain, lastBlockHeader *BlockHeader, lastBlockHeight uint32) uint32 {
+	// checking if next block should not have adjusted difficulty
+	if (lastBlockHeight+1)%params.RetargetInterval != 0 {
+		return lastBlockHeader.TargetBits
+	}
+
+	// to properly get actual time needed to mine this block interval, we need to check the timestamp
+	// of the block before the block that starts the interval
+	intervalStartHeight := lastBlockHeight - params.RetargetInterval
+	var timecomp uint64
+	if params.RetargetInterval > lastBlockHeight {
+		// this is true only for the first retarget that will take place
+		// it is not possible to check the timestamp of the block before the genesis
+		// since the genesis is the block that starts the interval
+		// to compensate for this, it is assumed that the genesis
+		// mining time was ideal
+		intervalStartHeight = 0
+		timecomp += params.ExpectedTimePerBlockInSec
+	}
+
+	firstBlockHeader, ok := bchain.GetHeaderAt(intervalStartHeight)
+	if !ok {
+		panic("Out of bounds getting first interval block")
+	}
+	// adding time compensation (if needed) to use in calculation of actual interval time
+	return calculateTargetForBlock(lastBlockHeader, firstBlockHeader.Timestamp+int64(timecomp))
+}
+
+func calculateTargetForBlock(lastBlockHeader *BlockHeader, firstStamp int64) uint32 {
+	prevTarget := lastBlockHeader.TargetBits
+	actualTime := float64(lastBlockHeader.Timestamp - firstStamp)
+	expectedTime := float64(params.ExpectedTimePerBlockInSec * uint64(params.RetargetInterval))
+	coeff := actualTime / expectedTime
+	return utils.ApplyCoeffToTarget(coeff, prevTarget)
+}

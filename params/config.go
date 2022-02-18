@@ -11,7 +11,10 @@ var (
 
 	MaxNumberOfTXsInBlock = 1000
 
-	BitsSize = 4
+	BitsSize                  int    = 4
+	RetargetInterval          uint32 = 2016
+	ExpectedTimePerBlockInSec uint64 = 2 * 60 // 2 minutes
+	MaxDifficulty             uint32 = 0x18ffffff
 
 	// FeePerByte means 1 tick per byte is used as a fee, used as placeholder for now
 	FeePerByte uint64 = 1
