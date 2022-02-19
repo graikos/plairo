@@ -19,6 +19,14 @@ var ErrTargetNotReached = errors.New("mined block does not satisfy target")
 var ErrInvalidHeaderLength = errors.New("invalid block header length")
 var ErrInvalidTimestamp = errors.New("invalid block timestamp")
 
+type IBlock interface {
+	GetBlockHash() []byte
+	Serialize() []byte
+	GetNoOfTx() int
+	GetBlockHeader() []byte
+	GetUndoData() ([]byte, []byte)
+}
+
 type BlockHeader struct {
 	PreviousBlockHash []byte
 	MerkleRoot        []byte
@@ -60,6 +68,10 @@ func NewBlock(txs []*Transaction) *Block {
 
 func (b *Block) AllBlockTx() []*Transaction {
 	return b.allBlockTx
+}
+
+func (b *Block) GetNoOfTx() int {
+	return len(b.allBlockTx)
 }
 
 func (b *Block) GetBlockHeader() []byte {

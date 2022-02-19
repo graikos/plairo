@@ -19,7 +19,8 @@ var (
 	// FeePerByte means 1 tick per byte is used as a fee, used as placeholder for now
 	FeePerByte uint64 = 1
 
-	StoragePath            = "/.plairo/blocks"
+	StoragePath            = "/.plairo/blocks/storage"
+	UndoStoragePath        = "/.plairo/blocks/undo"
 	MaxBlockFileSize int32 = 134217728 // 128Mb in bytes
 
 	// BlockMagicBytes are the same as bitcoin

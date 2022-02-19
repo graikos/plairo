@@ -4,11 +4,17 @@ import (
 	"bytes"
 	"errors"
 	"plairo/params"
-	"plairo/storage"
 )
 
 var ErrInvalidLink = errors.New("previous block hash does not match")
 var ErrInvalidHeight = errors.New("invalid block height")
+
+type iStorage interface {
+	WriteBlock(IBlock, uint32) error
+	GetBlockData([]byte) ([]byte, bool)
+}
+
+var BStorage iStorage
 
 // BNode represents a node in the blockchain. It holds the header info of the block.
 type BNode struct {
@@ -166,8 +172,7 @@ func (bc *Blockchain) InsertBlock(block *Block, height uint32) error {
 	lastnode.nextBNode = newnode
 
 	// by now the block has been confirmed, it should be written in storage
-	bwriter := storage.NewBlockWriter()
-	if _, err := bwriter.Write(block, height, true); err != nil {
+	if err := BStorage.WriteBlock(block, height); err != nil {
 		return err
 	}
 	// confirming block as valid will remove UTXOs used in this block
@@ -182,7 +187,7 @@ func (bc *Blockchain) InsertBlock(block *Block, height uint32) error {
 }
 
 func (bc *Blockchain) GetHeaderAt(index uint32) (*BlockHeader, bool) {
-	if index >= 0 && index < uint32(len(bc.chain)) {
+	if index < uint32(len(bc.chain)) {
 		return bc.chain[index].header, true
 	}
 	return nil, false

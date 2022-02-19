@@ -11,12 +11,10 @@ import (
 type KeyType byte
 
 const (
-	TxKey           = KeyType('c')
-	BlockIndexKey   = KeyType('b')
-	FileInfoKey     = KeyType('f')
-	TxIndexKey      = KeyType('t')
-	LastFileInd     = KeyType('I')
-	LastUndoFileInd = KeyType('U')
+	TxKey         = KeyType('c')
+	BlockIndexKey = KeyType('b')
+	FileInfoKey   = KeyType('f')
+	TxIndexKey    = KeyType('t')
 )
 
 func buildKey(keyType KeyType, data []byte) []byte {
@@ -108,6 +106,48 @@ func (d *DBwrapper) Get(key []byte) ([]byte, error) {
 
 func (d *DBwrapper) Remove(key []byte) error {
 	return d.db.Delete(key, nil)
+}
+
+func (d *DBwrapper) PageInsert(key, value []byte, maxPageSize int) error {
+	// appending page number byte
+	key = append(key, 0)
+
+	rem := len(value)
+	idx := 0
+	for rem > maxPageSize {
+		// if page is continued, add an extra byte
+		if err := d.Insert(key, append(value[idx:idx+maxPageSize], 0)); err != nil {
+			return err
+		}
+		// increment page number in key
+		key[len(key)-1]++
+		// updating remaining data length and current index
+		rem -= maxPageSize
+		idx += maxPageSize
+	}
+	if err := d.Insert(key, value[idx:]); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d *DBwrapper) PageGet(key []byte, maxPageSize int) ([]byte, bool) {
+	key = append(key, 0)
+	var res []byte
+	for {
+		data, err := d.Get(key)
+		if err != nil {
+			return nil, false
+		}
+		if len(data) != maxPageSize+1 {
+			// if page is not continued, break
+			res = append(res, data...)
+			break
+		}
+		res = append(res, data[:len(data)-1]...)
+		key[len(key)-1]++
+	}
+	return res, true
 }
 
 func (d *DBwrapper) Close() {

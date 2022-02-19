@@ -3,9 +3,10 @@ package db
 import (
 	"bytes"
 	"errors"
-	"github.com/syndtr/goleveldb/leveldb"
 	"os"
 	"testing"
+
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 var testDBWrapperPath string
@@ -85,7 +86,7 @@ func TestObfuscation(t *testing.T) {
 	db.obfuscationKey = []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 	obfval = db.obfuscateValue(expObfVal)
 	// calculating complement
-	for i, _ := range expObfVal {
+	for i := range expObfVal {
 		expObfVal[i] = ^expObfVal[i]
 	}
 	if !bytes.Equal(obfval, expObfVal) {
