@@ -1,3 +1,4 @@
 # Plairo
 
-Simplified implementation of the Bitcoin blockchain.
+Simplified implementation of the Bitcoin blockchain. (Work in progress)
+
